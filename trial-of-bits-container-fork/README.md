@@ -1,5 +1,7 @@
 # Claude Code in a devcontainer
 
+> **Notice:** This is a fork of [trailofbits/claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer). All credit for the original work goes to [Trail of Bits](https://www.trailofbits.com/) and the project's contributors. Please refer to the upstream repository for the canonical version: <https://github.com/trailofbits/claude-code-devcontainer>.
+
 A sandboxed development environment for running Claude Code with `bypassPermissions` safely enabled. Built at [Trail of Bits](https://www.trailofbits.com/) for security audit workflows.
 
 ## Why Use This?
