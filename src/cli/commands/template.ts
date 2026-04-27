@@ -8,9 +8,15 @@ export interface TemplateArgs {
   cwd: string
   /** Skip the overwrite confirmation when true. */
   force?: boolean
+  /**
+   * When true, also copy `firewall-allowlist.txt` into `.devcontainer/`.
+   * The container's `postStartCommand` will activate iptables based on it.
+   */
+  secure?: boolean
 }
 
 const TEMPLATE_FILES = ['Dockerfile', 'devcontainer.json', '.zshrc'] as const
+const FIREWALL_ALLOWLIST = 'firewall-allowlist.txt'
 
 /**
  * Ports `cmd_template` from install.sh.
@@ -60,6 +66,11 @@ export async function template(args: TemplateArgs, deps: CommandDeps): Promise<v
     const merged = mergeCustomMounts(config.mounts, preservedMounts)
     await fs.writeFile(targetJson, `${JSON.stringify({ ...config, mounts: merged }, null, 2)}\n`)
     logger.info('Custom mounts restored.')
+  }
+
+  if (args.secure) {
+    await fs.copy(`${templatesDir}/${FIREWALL_ALLOWLIST}`, `${targetDir}/${FIREWALL_ALLOWLIST}`)
+    logger.info(`Firewall allowlist copied to ${targetDir}/${FIREWALL_ALLOWLIST}`)
   }
 
   logger.success(`Template installed to ${targetDir}`)

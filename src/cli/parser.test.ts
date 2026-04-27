@@ -9,7 +9,21 @@ describe('parseArgs', () => {
   })
 
   it('maps "." to dot command in cwd', () => {
-    expect(parseArgs(['.'], ctx)).toEqual({ name: 'dot', cwd: '/proj', force: false })
+    expect(parseArgs(['.'], ctx)).toEqual({
+      name: 'dot',
+      cwd: '/proj',
+      force: false,
+      secure: false,
+    })
+  })
+
+  it('parses dot --secure', () => {
+    expect(parseArgs(['.', '--secure'], ctx)).toEqual({
+      name: 'dot',
+      cwd: '/proj',
+      force: false,
+      secure: true,
+    })
   })
 
   it('parses template with -f flag', () => {
@@ -17,6 +31,16 @@ describe('parseArgs', () => {
       name: 'template',
       cwd: '/elsewhere',
       force: true,
+      secure: false,
+    })
+  })
+
+  it('parses template --secure', () => {
+    expect(parseArgs(['template', '--secure'], ctx)).toEqual({
+      name: 'template',
+      cwd: '/proj',
+      force: false,
+      secure: true,
     })
   })
 
@@ -25,6 +49,7 @@ describe('parseArgs', () => {
       name: 'template',
       cwd: '/proj',
       force: false,
+      secure: false,
     })
   })
 

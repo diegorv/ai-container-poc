@@ -28,10 +28,13 @@ const TEMPLATE_DEVCONTAINER = JSON.stringify({
 })
 const TEMPLATE_ZSHRC = 'export PS1="$ "\n'
 
+const TEMPLATE_FIREWALL = '# allowlist\napi.anthropic.com\ngithub.com\n'
+
 function seedTemplates(fs: ReturnType<typeof createMemoryFs>): void {
   fs.writeFile('/tpl/Dockerfile', TEMPLATE_DOCKERFILE)
   fs.writeFile('/tpl/devcontainer.json', TEMPLATE_DEVCONTAINER)
   fs.writeFile('/tpl/.zshrc', TEMPLATE_ZSHRC)
+  fs.writeFile('/tpl/firewall-allowlist.txt', TEMPLATE_FIREWALL)
 }
 
 describe('template command', () => {
@@ -88,5 +91,23 @@ describe('template command', () => {
     expect(after.mounts).toContain('source=cmdhist,target=/commandhistory,type=volume')
     // Custom mount was preserved.
     expect(after.mounts).toContain('source=/h/data,target=/data,type=bind')
+  })
+
+  it('does not copy firewall-allowlist.txt by default', async () => {
+    const fs = createMemoryFs()
+    await fs.mkdir('/proj', { recursive: true })
+    await fs.mkdir('/tpl', { recursive: true })
+    seedTemplates(fs)
+    await template({ cwd: '/proj' }, buildDeps(fs))
+    expect(await fs.exists('/proj/.devcontainer/firewall-allowlist.txt')).toBe(false)
+  })
+
+  it('copies firewall-allowlist.txt when secure=true', async () => {
+    const fs = createMemoryFs()
+    await fs.mkdir('/proj', { recursive: true })
+    await fs.mkdir('/tpl', { recursive: true })
+    seedTemplates(fs)
+    await template({ cwd: '/proj', secure: true }, buildDeps(fs))
+    expect(await fs.readFile('/proj/.devcontainer/firewall-allowlist.txt')).toBe(TEMPLATE_FIREWALL)
   })
 })

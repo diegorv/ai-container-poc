@@ -108,14 +108,15 @@ COPY --chown=vscode:vscode .zshrc /home/vscode/.zshrc.custom
 # Append custom zshrc to the main one
 RUN echo 'source ~/.zshrc.custom' >> /home/vscode/.zshrc
 
-# Copy mydevc-init bundle and bootstrap script. The bundle is built by
-# `pnpm build` and includes the dist/container-init/index.js entry along
-# with the templates/ directory.
+# Copy mydevc-init bundle, bootstrap script, and firewall setup. The
+# bundle is built by `pnpm build` and includes the dist/container-init/
+# entry along with the templates/ directory.
 COPY --chown=vscode:vscode dist/container-init/index.js /opt/mydevc/container-init.js
 COPY --chown=vscode:vscode post-install-bootstrap.sh /opt/mydevc/post-install-bootstrap.sh
+COPY --chown=vscode:vscode setup-firewall.sh /opt/mydevc/setup-firewall.sh
 
 # Expose mydevc-init on PATH so postCreateCommand can call it directly.
 USER root
 RUN ln -sf /opt/mydevc/container-init.js /usr/local/bin/mydevc-init && \
-  chmod +x /opt/mydevc/post-install-bootstrap.sh /opt/mydevc/container-init.js
+  chmod +x /opt/mydevc/post-install-bootstrap.sh /opt/mydevc/container-init.js /opt/mydevc/setup-firewall.sh
 USER vscode

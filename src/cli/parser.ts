@@ -7,8 +7,8 @@
  */
 export type ParsedCommand =
   | { name: 'help' }
-  | { name: 'template'; cwd: string; force: boolean }
-  | { name: 'dot'; cwd: string; force: boolean }
+  | { name: 'template'; cwd: string; force: boolean; secure: boolean }
+  | { name: 'dot'; cwd: string; force: boolean; secure: boolean }
   | { name: 'up'; cwd: string }
   | { name: 'rebuild'; cwd: string }
   | { name: 'down'; cwd: string }
@@ -56,12 +56,16 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
   }
 
   switch (head) {
-    case '.':
-      return { name: 'dot', cwd: ctx.cwd, force: hasFlag(args, '-f') }
+    case '.': {
+      const force = hasFlag(args, '-f')
+      const secure = hasFlag(args, '--secure')
+      return { name: 'dot', cwd: ctx.cwd, force, secure }
+    }
     case 'template': {
       const force = hasFlag(args, '-f')
+      const secure = hasFlag(args, '--secure')
       const dir = take(args) ?? '.'
-      return { name: 'template', cwd: dir === '.' ? ctx.cwd : dir, force }
+      return { name: 'template', cwd: dir === '.' ? ctx.cwd : dir, force, secure }
     }
     case 'up':
       return { name: 'up', cwd: take(args) ?? ctx.cwd }
