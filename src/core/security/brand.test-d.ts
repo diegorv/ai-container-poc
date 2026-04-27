@@ -10,12 +10,14 @@
 
 import { expectTypeOf, test } from 'vitest'
 import {
+  type AbsolutePath,
   type HomeOrRootAbsolutePath,
   type PosixUserName,
   type SafeFilename,
   type Untrusted,
   untrust,
 } from './brand'
+import { joinPath, literalPath, safeFilename } from './path'
 import { asHomeOrRootAbsolutePath, asPosixUserName, asSafeFilename } from './untrusted-input'
 
 test('Untrusted is not assignable to string', () => {
@@ -64,4 +66,24 @@ test('validators accept Untrusted<S> for any S', () => {
 test('Untrusted preserves provenance in the type', () => {
   const v = untrust('x', 'docker.config.user')
   expectTypeOf(v).toEqualTypeOf<Untrusted<'docker.config.user'>>()
+})
+
+test('AbsolutePath is a string subtype but not interchangeable with other capabilities', () => {
+  expectTypeOf<AbsolutePath>().toMatchTypeOf<string>()
+  expectTypeOf<AbsolutePath>().not.toMatchTypeOf<SafeFilename>()
+  expectTypeOf<SafeFilename>().not.toMatchTypeOf<AbsolutePath>()
+  expectTypeOf<string>().not.toMatchTypeOf<AbsolutePath>()
+})
+
+test('joinPath demands SafeFilename segments — raw strings are rejected', () => {
+  const base = literalPath('/opt')
+  // SafeFilename arg compiles:
+  expectTypeOf(joinPath).toBeCallableWith(base, safeFilename('a'))
+  // The signature is `(base: AbsolutePath, ...segs: SafeFilename[])`,
+  // so a raw `string` segment doesn't satisfy the parameter type.
+  expectTypeOf(joinPath).parameters.toEqualTypeOf<[AbsolutePath, ...SafeFilename[]]>()
+})
+
+test('literalPath returns AbsolutePath', () => {
+  expectTypeOf(literalPath).returns.toEqualTypeOf<AbsolutePath>()
 })

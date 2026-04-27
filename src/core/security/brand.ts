@@ -112,6 +112,18 @@ export type HomeOrRootAbsolutePath = Capability<'home-or-root-abs'>
 export type SafeMountField = Capability<'safe-mount-field'>
 
 /**
+ * A validated absolute filesystem path. Constructed only via the
+ * factories in `core/security/path` (`literalPath`, `operatorPath`,
+ * `joinPath`); the `FileSystem` port accepts only this type so raw
+ * `string` paths cannot reach `fs.write`/`fs.read`/etc.
+ *
+ * The brand does not assert "exists" or "writable" — those are runtime
+ * properties. It asserts "well-formed and traversal-clean": absolute,
+ * no NUL bytes, no `..` segments after joining.
+ */
+export type AbsolutePath = Capability<'absolute-path'>
+
+/**
  * Internal escape hatch for the security module. Lives here so every
  * `as`-cast that produces a capability is grep-able as `brandAs(`.
  * Outside `core/security/`, treat any call to this as a review event.
