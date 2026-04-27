@@ -125,4 +125,18 @@ describe('cp command', () => {
       /No running devcontainer/,
     )
   })
+
+  it('rejects a containerPath that starts with -', async () => {
+    const deps = buildDeps()
+    await expect(
+      cp({ cwd: '/proj', containerPath: '--archive', hostPath: '/host/out' }, deps),
+    ).rejects.toThrow(/starts with '-'/)
+  })
+
+  it('rejects a hostPath that starts with -', async () => {
+    const deps = buildDeps()
+    await expect(
+      cp({ cwd: '/proj', containerPath: '/workspace/foo', hostPath: '-rf' }, deps),
+    ).rejects.toThrow(/starts with '-'/)
+  })
 })
