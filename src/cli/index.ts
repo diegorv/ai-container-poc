@@ -10,6 +10,7 @@ import { execaShell } from '@/adapters/shell/execa-shell'
 import { CliError } from '@/lib/cli-error'
 import { EnvSchema } from '@/schemas/env'
 import { clean } from './commands/clean'
+import { completion } from './commands/completion'
 import { cp } from './commands/cp'
 import { destroy } from './commands/destroy'
 import { dot } from './commands/dot'
@@ -112,6 +113,9 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
       return 0
     case 'validate':
       await validate(cmd, deps)
+      return 0
+    case 'completion':
+      process.stdout.write(completion(cmd))
       return 0
     case 'clean':
       await clean(cmd, deps)

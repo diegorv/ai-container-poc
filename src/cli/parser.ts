@@ -23,6 +23,7 @@ export type ParsedCommand =
   | { name: 'logs'; cwd: string; follow: boolean; tail: number | undefined }
   | { name: 'ps' }
   | { name: 'validate'; cwd: string }
+  | { name: 'completion'; shell: 'bash' | 'zsh' | 'fish' }
   | {
       name: 'clean'
       cwd: string
@@ -131,6 +132,13 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
       return { name: 'ps' }
     case 'validate':
       return { name: 'validate', cwd: ctx.cwd }
+    case 'completion': {
+      const shell = take(args)
+      if (shell !== 'bash' && shell !== 'zsh' && shell !== 'fish') {
+        throw new Error('Usage: mydevc completion <bash|zsh|fish>')
+      }
+      return { name: 'completion', shell }
+    }
     case 'clean':
       return {
         name: 'clean',

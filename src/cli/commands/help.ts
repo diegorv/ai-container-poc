@@ -27,6 +27,7 @@ Commands:
     clean [flags]          Granular cleanup: --container --volumes --images --cache
     self-install           Symlink mydevc into ~/.local/bin
     update                 Pull the latest mydevc from git
+    completion <shell>     Print a bash/zsh/fish completion script to stdout
     help                   Show this help message
 
 Examples:
