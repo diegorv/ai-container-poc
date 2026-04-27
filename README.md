@@ -456,6 +456,35 @@ The result: forgetting to validate is a compile error, not a silent vulnerabilit
 
 The full design — including the threat model, the layer diagram, and what is *not* branded and why — lives in [`Arch.md`](./Arch.md) under "Security architecture". The day-to-day rules for adding new untrusted sources are in [`CLAUDE.md`](./CLAUDE.md).
 
+### Inner sandbox — `claude-jail`
+
+The Docker container is the primary security boundary; `claude-jail` is a **second, finer-grained** boundary *inside* the container, useful in two scenarios:
+
+- **Shared-workspace mode** (`~/dev`) where Claude can otherwise read every repo under the parent — `claude-jail` restricts its filesystem view to the **current working directory**.
+- **Untrusted code** where you want to keep credentials (Claude OAuth token, `gh` auth, cloud credentials) hidden from the `claude` process itself, not just from the host.
+
+`mydevc-init`'s `claude:sandbox` step installs `~/.local/bin/claude-jail` — a `bubblewrap` wrapper that:
+
+| | |
+|---|---|
+| `$PWD` | read-write (the project) |
+| Rest of `/` | read-only (system tools) |
+| `~/.claude`, `~/.config/gh`, `~/.aws`, `~/.azure`, `~/.gcp`, `~/.ssh` | masked by `tmpfs` (credentials hidden) |
+| `/proc`, `/dev`, `/tmp` | fresh (no host process visibility) |
+| `pid` / `ipc` / `uts` / `user` namespaces | new |
+| Network | preserved (Claude needs `api.anthropic.com`) |
+
+```bash
+mydevc shell
+# inside the container:
+claude-jail                                  # like `claude`, but with the inner sandbox
+alias claude=claude-jail                     # opt in by default for this shell session
+CLAUDE_JAIL_DISABLE=1 claude-jail …          # bypass the jail without removing the alias
+CLAUDE_JAIL_REAL_BIN=/path/to/claude claude-jail …   # override the lookup
+```
+
+Skipped silently when `bubblewrap` is not on `PATH`. Networking is intentionally **not** unshared (Anthropic API access). Use `--secure` for outbound network filtering instead.
+
 ### Network isolation — `--secure`
 
 Pass `--secure` to `template` or `.` to drop `firewall-allowlist.txt` into `.devcontainer/`. The container's `postStartCommand` then runs `setup-firewall.sh` on every start, applying iptables rules that:
@@ -492,8 +521,8 @@ src/
   adapters/         # real (node-fs, cli-docker, …) + fake (memory-fs, fake-docker, …)
   schemas/          # zod schemas for devcontainer.json, env, project info
   container-init/   # mydevc-init steps + runner + entry
-    steps/          # claude-bypass, claude-settings, tmux-config,
-                    # directory-ownership, git-config
+    steps/          # claude-bypass, claude-settings, claude-sandbox,
+                    # tmux-config, directory-ownership, git-config
   lib/              # generic utilities (result, deep-merge, walk-fs,
                     # path-utils, cli-error)
   config.ts         # invariant constants
