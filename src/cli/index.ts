@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createCliDevcontainer } from '@/adapters/devcontainer/cli-devcontainer'
 import { createCliDocker } from '@/adapters/docker/cli-docker'
 import { nodeFs } from '@/adapters/filesystem/node-fs'
-import { createPinoLogger } from '@/adapters/logger/pino-logger'
+import { createPrettyLogger } from '@/adapters/logger/pretty-logger'
 import { ttyPrompt } from '@/adapters/prompt/tty-prompt'
 import { execaShell } from '@/adapters/shell/execa-shell'
 import { EnvSchema } from '@/schemas/env'
@@ -46,7 +46,7 @@ function buildDeps(): CommandDeps {
     docker,
     devcontainer,
     shell: execaShell,
-    logger: createPinoLogger(),
+    logger: createPrettyLogger(),
     prompt: ttyPrompt,
     templatesDir: resolveTemplatesDir(),
     env,

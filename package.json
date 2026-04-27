@@ -24,7 +24,6 @@
     "@devcontainers/cli": "^0.80.0",
     "citty": "^0.1.6",
     "execa": "^9.5.2",
-    "pino": "^9.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
