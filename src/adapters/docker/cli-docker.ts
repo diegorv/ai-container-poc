@@ -1,3 +1,4 @@
+import { CliError } from '@/lib/cli-error'
 import type { ContainerInfo, Docker, DockerExecResult, VolumeInfo } from '@/ports/docker'
 import type { Shell } from '@/ports/shell'
 
@@ -75,32 +76,49 @@ function check(result: DockerExecResult, action: string): void {
 }
 
 export function createCliDocker(shell: Shell): Docker {
+  let checked = false
+  async function ensureBinary(): Promise<void> {
+    if (checked) return
+    if (!(await shell.which('docker'))) {
+      throw new CliError('docker not found on PATH.', {
+        suggestion:
+          'Install Docker Desktop, OrbStack, or Colima — see https://docker.com/products/docker-desktop',
+      })
+    }
+    checked = true
+  }
+  // Wrap shell.exec so every docker invocation runs ensureBinary first
+  // without sprinkling the call across every method below.
+  const dockerExec = async (args: string[]): Promise<DockerExecResult> => {
+    await ensureBinary()
+    return shell.exec('docker', args)
+  }
   return {
     async listContainers(filter) {
       const args = ['ps', '--format', '{{.ID}}']
       if (filter?.all !== false) args.splice(1, 0, '-a')
       if (filter?.label) args.push('--filter', `label=${filter.label}`)
-      const list = await shell.exec('docker', args)
+      const list = await dockerExec(args)
       check(list, 'ps')
       const ids = list.stdout
         .split('\n')
         .map((l) => l.trim())
         .filter(Boolean)
       if (ids.length === 0) return []
-      const inspect = await shell.exec('docker', ['inspect', ...ids])
+      const inspect = await dockerExec(['inspect', ...ids])
       check(inspect, 'inspect')
       const parsed = JSON.parse(inspect.stdout) as DockerInspectContainer[]
       return parsed.map(inspectToInfo)
     },
 
     async inspectContainer(idOrName) {
-      const r = await shell.exec('docker', ['inspect', idOrName])
+      const r = await dockerExec(['inspect', idOrName])
       check(r, 'inspect')
       return parseInspectContainer(JSON.parse(r.stdout))
     },
 
     async stopContainer(id) {
-      const r = await shell.exec('docker', ['stop', id])
+      const r = await dockerExec(['stop', id])
       check(r, 'stop')
     },
 
@@ -109,7 +127,7 @@ export function createCliDocker(shell: Shell): Docker {
       if (options?.force) args.push('-f')
       if (options?.volumes) args.push('-v')
       args.push(id)
-      const r = await shell.exec('docker', args)
+      const r = await dockerExec(args)
       check(r, 'rm')
     },
 
@@ -117,14 +135,14 @@ export function createCliDocker(shell: Shell): Docker {
       const args = ['volume', 'ls', '--format', '{{.Name}}']
       if (filter?.name) args.push('--filter', `name=${filter.name}`)
       if (filter?.label) args.push('--filter', `label=${filter.label}`)
-      const ls = await shell.exec('docker', args)
+      const ls = await dockerExec(args)
       check(ls, 'volume ls')
       const names = ls.stdout
         .split('\n')
         .map((l) => l.trim())
         .filter(Boolean)
       if (names.length === 0) return []
-      const inspect = await shell.exec('docker', ['volume', 'inspect', ...names])
+      const inspect = await dockerExec(['volume', 'inspect', ...names])
       check(inspect, 'volume inspect')
       const parsed = JSON.parse(inspect.stdout) as DockerInspectVolume[]
       return parsed.map((v) => ({ name: v.Name, labels: v.Labels ?? {} }))
@@ -134,12 +152,12 @@ export function createCliDocker(shell: Shell): Docker {
       const args = ['volume', 'rm']
       if (options?.force) args.push('-f')
       args.push(name)
-      const r = await shell.exec('docker', args)
+      const r = await dockerExec(args)
       check(r, 'volume rm')
     },
 
     async imageExists(name) {
-      const r = await shell.exec('docker', ['image', 'inspect', name])
+      const r = await dockerExec(['image', 'inspect', name])
       return r.exitCode === 0
     },
 
@@ -147,12 +165,12 @@ export function createCliDocker(shell: Shell): Docker {
       const args = ['rmi']
       if (options?.force) args.push('-f')
       args.push(name)
-      const r = await shell.exec('docker', args)
+      const r = await dockerExec(args)
       check(r, 'rmi')
     },
 
     async cp({ source, dest }) {
-      const r = await shell.exec('docker', ['cp', source, dest])
+      const r = await dockerExec(['cp', source, dest])
       check(r, 'cp')
     },
 
@@ -163,7 +181,7 @@ export function createCliDocker(shell: Shell): Docker {
         args.push('--env', `${k}=${v}`)
       }
       args.push(idOrName, ...command)
-      const r = await shell.exec('docker', args)
+      const r = await dockerExec(args)
       return r
     },
   }
