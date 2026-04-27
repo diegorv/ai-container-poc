@@ -145,13 +145,30 @@ The mount is added to `devcontainer.json` and the container is recreated. Custom
 | | |
 |---|---|
 | **Sandboxed** | Filesystem (host files inaccessible), processes, package installations |
-| **Not sandboxed** | Network (full outbound by default), git identity (`~/.gitconfig` mounted read-only), SSH agent (forwarded socket — keys stay on host), Docker socket (not mounted) |
+| **Network**   | Full outbound by default; opt-in iptables allowlist via `--secure` (see below) |
+| **Not sandboxed** | Git identity (`~/.gitconfig` mounted read-only), SSH agent (forwarded socket — keys stay on host), Docker socket (not mounted) |
 
 The container is the sandbox: `bypassPermissions` is auto-configured, so Claude runs commands without confirmation, but everything happens inside the container's filesystem.
 
-For network isolation, use iptables inside the container — see the [TrailOfBits upstream README](https://github.com/trailofbits/claude-code-devcontainer) for an allowlist example.
-
 `SYS_ADMIN` in `runArgs` is rejected by `mydevc up`/`rebuild` because it would defeat the read-only `.devcontainer/` mount that prevents a compromised process from injecting commands into `devcontainer.json`.
+
+### Network isolation — `--secure`
+
+Pass `--secure` to `template` or `.` to drop `firewall-allowlist.txt` into `.devcontainer/`. The container's `postStartCommand` then runs `setup-firewall.sh` on every start, applying iptables rules that:
+
+- Drop all OUTPUT traffic by default.
+- Allow loopback (`lo`).
+- Allow DNS (UDP+TCP port 53).
+- Allow each hostname listed in `firewall-allowlist.txt` (resolved at rule-add time).
+
+```bash
+mydevc . --secure              # template + up with the firewall active
+mydevc template --secure       # just drop the allowlist; up later
+```
+
+Without `--secure`, the allowlist file isn't present and `setup-firewall.sh` is a no-op — the container has unrestricted outbound access. To toggle later, just add or remove `.devcontainer/firewall-allowlist.txt` and re-run `mydevc rebuild` (or `mydevc down && mydevc up`).
+
+The default allowlist covers Anthropic API, GitHub, npm, PyPI, and the Claude installer. Edit `.devcontainer/firewall-allowlist.txt` to add/remove hosts. Hostnames are resolved once at rule-add time, so prefer endpoints with stable DNS.
 
 ## Architecture
 
@@ -176,7 +193,8 @@ src/
   lib/              # generic utilities (result, deep-merge, walk-fs, path-utils)
   config.ts         # invariant constants
 templates/          # Dockerfile, devcontainer.json, .zshrc, .dockerignore,
-                    # post-install-bootstrap.sh
+                    # post-install-bootstrap.sh, setup-firewall.sh,
+                    # firewall-allowlist.txt
 tests/
   integration/      # contract tests (real adapter ↔ memory fake)
   e2e/              # built-binary smoke tests

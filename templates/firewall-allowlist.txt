@@ -1,0 +1,32 @@
+# mydevc firewall allowlist
+# One hostname or IP per line. Lines starting with `#` and blank lines are ignored.
+#
+# When this file is present at `/workspace/.devcontainer/firewall-allowlist.txt`
+# inside the container, the `postStartCommand` runs `setup-firewall.sh` and
+# narrows outbound traffic to just the entries below (plus DNS and loopback).
+#
+# Mount or remove the file to disable / re-enable.
+#
+# IMPORTANT: hostnames are resolved at rule-add time. Apps inside the container
+# that target IPs returned by a different DNS lookup later may be blocked.
+# Prefer hostnames whose DNS is stable.
+
+# Anthropic Claude API
+api.anthropic.com
+
+# GitHub (HTTPS clones, gh CLI, raw content, release tarballs)
+github.com
+api.github.com
+raw.githubusercontent.com
+codeload.github.com
+objects.githubusercontent.com
+
+# npm
+registry.npmjs.org
+
+# Python (pip / uv)
+pypi.org
+files.pythonhosted.org
+
+# Claude install + plugin marketplace
+claude.ai

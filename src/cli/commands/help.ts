@@ -7,7 +7,9 @@ export const HELP_TEXT = `Usage: mydevc <command> [options]
 
 Commands:
     .                      Install template + start container in current dir
+                           (use --secure to also enable the iptables allowlist)
     template [dir]         Copy devcontainer template into directory
+                           (use --secure to also drop firewall-allowlist.txt)
     up [dir]               Start the devcontainer
     rebuild [dir]          Rebuild the devcontainer (preserves volumes)
     down [dir]             Stop the devcontainer
@@ -40,4 +42,5 @@ Examples:
     mydevc info                    Show project state at a glance
     mydevc clean --volumes -f      Drop only the docker volumes
     mydevc clean --images --cache  Free disk: image + builder cache
+    mydevc . --secure              Spin up with iptables allowlist active
 `

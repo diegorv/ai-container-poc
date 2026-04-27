@@ -5,6 +5,7 @@ import { up } from './up'
 export interface DotArgs {
   cwd: string
   force?: boolean
+  secure?: boolean
 }
 
 /**
