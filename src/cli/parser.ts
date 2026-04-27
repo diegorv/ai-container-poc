@@ -22,6 +22,8 @@ export type ParsedCommand =
   | { name: 'info'; cwd: string; json: boolean }
   | { name: 'logs'; cwd: string; follow: boolean; tail: number | undefined }
   | { name: 'ps' }
+  | { name: 'validate'; cwd: string }
+  | { name: 'completion'; shell: 'bash' | 'zsh' | 'fish' }
   | {
       name: 'clean'
       cwd: string
@@ -37,6 +39,43 @@ export type ParsedCommand =
 
 export interface ParseContext {
   cwd: string
+}
+
+export type Verbosity = 'quiet' | 'normal' | 'verbose'
+
+export interface GlobalFlags {
+  verbosity: Verbosity
+  argv: string[]
+}
+
+/**
+ * Strips global flags (`--verbose`, `-v`, `--quiet`, `-q`) from `argv`
+ * before command parsing so any command can be silenced or made chatty
+ * without per-command boilerplate. `--verbose` wins over `--quiet` if
+ * both are present.
+ */
+export function parseGlobalFlags(argv: readonly string[]): GlobalFlags {
+  const out = [...argv]
+  let verbose = false
+  let quiet = false
+  for (const flag of ['--verbose', '-v']) {
+    const i = out.indexOf(flag)
+    if (i !== -1) {
+      out.splice(i, 1)
+      verbose = true
+    }
+  }
+  for (const flag of ['--quiet', '-q']) {
+    const i = out.indexOf(flag)
+    if (i !== -1) {
+      out.splice(i, 1)
+      quiet = true
+    }
+  }
+  return {
+    argv: out,
+    verbosity: verbose ? 'verbose' : quiet ? 'quiet' : 'normal',
+  }
 }
 
 function take(args: string[]): string | undefined {
@@ -128,6 +167,15 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
     }
     case 'ps':
       return { name: 'ps' }
+    case 'validate':
+      return { name: 'validate', cwd: ctx.cwd }
+    case 'completion': {
+      const shell = take(args)
+      if (shell !== 'bash' && shell !== 'zsh' && shell !== 'fish') {
+        throw new Error('Usage: mydevc completion <bash|zsh|fish>')
+      }
+      return { name: 'completion', shell }
+    }
     case 'clean':
       return {
         name: 'clean',

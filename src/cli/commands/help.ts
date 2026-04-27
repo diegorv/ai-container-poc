@@ -3,7 +3,7 @@
  * dispatcher can write it directly to stdout and tests can assert on
  * its presence.
  */
-export const HELP_TEXT = `Usage: mydevc <command> [options]
+export const HELP_TEXT = `Usage: mydevc [-v|--verbose | -q|--quiet] <command> [options]
 
 Commands:
     .                      Install template + start container in current dir
@@ -23,9 +23,11 @@ Commands:
     info [--json]          Show project state (container, image, volumes, mounts)
     logs [-f] [--tail N]   Show docker logs for the current project's container
     ps                     List every devcontainer across the host
+    validate               Validate .devcontainer/devcontainer.json
     clean [flags]          Granular cleanup: --container --volumes --images --cache
     self-install           Symlink mydevc into ~/.local/bin
     update                 Pull the latest mydevc from git
+    completion <shell>     Print a bash/zsh/fish completion script to stdout
     help                   Show this help message
 
 Examples:

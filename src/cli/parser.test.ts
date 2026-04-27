@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseArgs } from './parser'
+import { parseArgs, parseGlobalFlags } from './parser'
 
 const ctx = { cwd: '/proj' }
 
@@ -131,5 +131,29 @@ describe('parseArgs', () => {
 
   it('throws on unknown command', () => {
     expect(() => parseArgs(['banana'], ctx)).toThrow(/Unknown command: banana/)
+  })
+})
+
+describe('parseGlobalFlags', () => {
+  it('strips --verbose and reports verbose', () => {
+    expect(parseGlobalFlags(['up', '--verbose', '/proj'])).toEqual({
+      argv: ['up', '/proj'],
+      verbosity: 'verbose',
+    })
+  })
+
+  it('strips -q and reports quiet', () => {
+    expect(parseGlobalFlags(['-q', 'destroy'])).toEqual({
+      argv: ['destroy'],
+      verbosity: 'quiet',
+    })
+  })
+
+  it('verbose wins when both are passed', () => {
+    expect(parseGlobalFlags(['--quiet', '--verbose', 'up']).verbosity).toBe('verbose')
+  })
+
+  it('returns "normal" when neither is set', () => {
+    expect(parseGlobalFlags(['up']).verbosity).toBe('normal')
   })
 })

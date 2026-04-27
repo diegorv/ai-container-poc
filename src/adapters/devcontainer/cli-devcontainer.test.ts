@@ -2,10 +2,13 @@ import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { describe, expect, it } from 'vitest'
 import { createCliDevcontainer } from './cli-devcontainer'
 
+const WITH_BIN = { devcontainer: '/usr/local/bin/devcontainer' }
+
 describe('cli-devcontainer via fake-shell', () => {
   it('passes workspace-folder and parses container id from last JSON line', async () => {
     let capturedArgs: string[] = []
     const shell = createFakeShell({
+      binaries: WITH_BIN,
       responder: (cmd, args) => {
         if (cmd === 'devcontainer') {
           capturedArgs = args
@@ -26,6 +29,7 @@ describe('cli-devcontainer via fake-shell', () => {
   it('passes --remove-existing-container when requested', async () => {
     let capturedArgs: string[] = []
     const shell = createFakeShell({
+      binaries: WITH_BIN,
       responder: (cmd, args) => {
         if (cmd === 'devcontainer') {
           capturedArgs = args
@@ -46,6 +50,7 @@ describe('cli-devcontainer via fake-shell', () => {
 
   it('throws when devcontainer up exits non-zero', async () => {
     const shell = createFakeShell({
+      binaries: WITH_BIN,
       responder: () => ({ exitCode: 2, stderr: 'oops' }),
     })
     const dc = createCliDevcontainer(shell)
@@ -54,8 +59,18 @@ describe('cli-devcontainer via fake-shell', () => {
     )
   })
 
+  it('throws CliError with a suggestion when the binary is missing', async () => {
+    const shell = createFakeShell({
+      // No binaries registered → which() returns null.
+      responder: () => ({ exitCode: 0 }),
+    })
+    const dc = createCliDevcontainer(shell)
+    await expect(dc.up({ workspaceFolder: '/proj' })).rejects.toThrow(/devcontainer CLI not found/)
+  })
+
   it('exec interactive uses execInteractive on shell', async () => {
     const shell = createFakeShell({
+      binaries: WITH_BIN,
       responder: () => ({ exitCode: 0 }),
     })
     const dc = createCliDevcontainer(shell)

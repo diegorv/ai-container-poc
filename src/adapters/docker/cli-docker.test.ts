@@ -5,6 +5,7 @@ import { createCliDocker } from './cli-docker'
 describe('cli-docker via fake-shell', () => {
   it('listContainers passes label filter and parses inspect output', async () => {
     const shell = createFakeShell({
+      binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {
         if (cmd === 'docker' && args[0] === 'ps') {
           expect(args).toContain('--filter')
@@ -46,6 +47,7 @@ describe('cli-docker via fake-shell', () => {
   it('removeContainer with force passes -f', async () => {
     const seen: string[][] = []
     const shell = createFakeShell({
+      binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {
         if (cmd === 'docker') seen.push(args)
         return { stdout: '', exitCode: 0 }
@@ -58,6 +60,7 @@ describe('cli-docker via fake-shell', () => {
 
   it('imageExists returns true on exit 0 and false otherwise', async () => {
     const shell = createFakeShell({
+      binaries: { docker: '/usr/bin/docker' },
       responder: (_cmd, args) => {
         if (args[0] === 'image' && args[2] === 'present') {
           return { stdout: '[]', exitCode: 0 }
@@ -73,6 +76,7 @@ describe('cli-docker via fake-shell', () => {
   it('exec forwards user and env flags', async () => {
     let captured: string[] = []
     const shell = createFakeShell({
+      binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {
         if (cmd === 'docker' && args[0] === 'exec') {
           captured = args
@@ -100,9 +104,16 @@ describe('cli-docker via fake-shell', () => {
 
   it('throws on non-zero exit with stderr context', async () => {
     const shell = createFakeShell({
+      binaries: { docker: '/usr/bin/docker' },
       responder: () => ({ exitCode: 1, stderr: 'boom\n' }),
     })
     const docker = createCliDocker(shell)
     await expect(docker.stopContainer('x')).rejects.toThrow(/docker stop failed.*boom/)
+  })
+
+  it('throws CliError with a suggestion when docker is missing', async () => {
+    const shell = createFakeShell({ responder: () => ({ exitCode: 0 }) })
+    const docker = createCliDocker(shell)
+    await expect(docker.listContainers()).rejects.toThrow(/docker not found on PATH/)
   })
 })
