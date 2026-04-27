@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@devcontainers/cli':
+        specifier: ^0.80.0
+        version: 0.80.3
       execa:
         specifier: ^9.5.2
         version: 9.6.1
@@ -88,6 +91,11 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@devcontainers/cli@0.80.3':
+    resolution: {integrity: sha512-PaN2NxSdVdrY77C4aiqXjFyrg8Bj86hMSdRsHnLCwsocPcMUNxOjLz6G7jKUy6K7FIHY38613LNwfBVi1ePpdA==}
+    engines: {node: ^16.13.0 || >=18.0.0}
+    hasBin: true
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -1044,6 +1052,8 @@ snapshots:
 
   '@biomejs/cli-win32-x64@1.9.4':
     optional: true
+
+  '@devcontainers/cli@0.80.3': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
