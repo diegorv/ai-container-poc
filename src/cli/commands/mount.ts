@@ -2,6 +2,7 @@ import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousMountPath } from '@/core/devcontainer/dangerous-mount-paths'
 import { addBindMount } from '@/core/devcontainer/manipulate-mounts'
 import { CliError } from '@/lib/cli-error'
+import { hasJsoncSyntax } from '@/lib/jsonc-detect'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -43,6 +44,11 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
   }
 
   const raw = await fs.readFile(dcJson)
+  if (hasJsoncSyntax(raw)) {
+    logger.warn(
+      `${dcJson} appears to use JSONC (comments / trailing commas). Rewriting it will drop them. Consider editing the file manually if you want to preserve formatting.`,
+    )
+  }
   const config = DevcontainerConfigSchema.parse(JSON.parse(raw))
   const updatedMounts = addBindMount({
     mounts: config.mounts,
