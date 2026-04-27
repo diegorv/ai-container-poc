@@ -44,10 +44,14 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
         `devcontainer.json contains fields the audit does not understand: ${unknown.join(', ')}. They are passed to the runtime as-is.`,
       )
     }
-    if (await fs.exists(workspaceAllowlistPath(cwd))) {
-      for (const w of findFirewallWindowWarnings(parsed)) {
-        logger.warn(`Pre-firewall lifecycle: ${w.reason}`)
-      }
+    // Lifecycle hooks (`postCreateCommand`, `features`, …) run arbitrary
+    // code with the container's network unrestricted. With `--secure` the
+    // firewall lands *after* this window; without it the network is open
+    // throughout. Warn either way so the operator knows the surface.
+    const secure = await fs.exists(workspaceAllowlistPath(cwd))
+    for (const w of findFirewallWindowWarnings(parsed)) {
+      const prefix = secure ? 'Pre-firewall lifecycle' : 'Lifecycle hook (network is open)'
+      logger.warn(`${prefix}: ${w.reason}`)
     }
   }
 

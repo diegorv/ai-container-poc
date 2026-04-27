@@ -52,6 +52,17 @@ describe('up', () => {
     await expect(up({ cwd: '/proj' }, deps)).rejects.toThrow(/SYS_ADMIN/)
     expect(deps.devcontainer.upCalls).toHaveLength(0)
   })
+
+  it('warns about lifecycle hooks even without --secure', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(
+      p('/proj/.devcontainer/devcontainer.json'),
+      JSON.stringify({ name: 'sandbox', postCreateCommand: 'npm install' }),
+    )
+    await up({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('warn', 'Lifecycle hook')).toBe(true)
+  })
 })
 
 describe('rebuild', () => {

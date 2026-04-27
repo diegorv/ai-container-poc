@@ -49,7 +49,42 @@ const HOST_NAMESPACE_FLAGS = new Set([
   '--net', // legacy alias
 ])
 
-const DANGEROUS_DEVICES = /^\/dev\/(kmsg|mem|kmem|cpu_dma_latency)$/i
+/**
+ * Capabilities that defeat the sandbox if granted via `--cap-add`. The
+ * original check only rejected `SYS_ADMIN` and `ALL`; this list extends
+ * the denylist to every capability with a documented container-escape or
+ * host-tampering use case.
+ *
+ * Not denied: `NET_ADMIN` (needed for the firewall script), `NET_RAW`,
+ * `CHOWN`, `SETUID`, `SETGID`, `SETPCAP` — common runtime needs that do
+ * not, on their own, break out of the namespace.
+ */
+const DENIED_CAPABILITIES = new Set([
+  'ALL',
+  'SYS_ADMIN', // mount(), pivot_root, unshare — classic escape primitive
+  'SYS_PTRACE', // attach to host processes when sharing PID ns or via /proc tricks
+  'SYS_MODULE', // load arbitrary kernel modules
+  'SYS_BOOT', // reboot the host
+  'SYS_RAWIO', // /dev/mem, ioperm, iopl
+  'SYS_TIME', // set the host clock
+  'MKNOD', // create device nodes; combined with disk access = host fs read
+  'DAC_READ_SEARCH', // bypass file-read DAC checks
+  'DAC_OVERRIDE', // bypass r/w DAC checks
+  'LINUX_IMMUTABLE', // strip immutable / append-only attrs on host bind mounts
+  'BPF', // load arbitrary BPF programs
+  'PERFMON', // perf_event_open on host
+  'AUDIT_CONTROL', // disable host audit subsystem
+  'AUDIT_READ', // read kernel audit log
+  'SYSLOG', // read kernel printk buffer (KASLR leaks)
+])
+
+/**
+ * Devices on the host whose names give read or write access to memory,
+ * raw block storage, or kernel state. Any of these via `--device=` is a
+ * straight path to host compromise.
+ */
+const DANGEROUS_DEVICES =
+  /^\/dev\/(kmsg|mem|kmem|port|cpu_dma_latency|sd[a-z][0-9]*|hd[a-z][0-9]*|nvme[0-9]+(n[0-9]+(p[0-9]+)?)?|vd[a-z][0-9]*|xvd[a-z][0-9]*|loop[0-9]+(p[0-9]+)?|nbd[0-9]+|md[0-9]+|dm-[0-9]+|mapper\/.+|disk\/.+|block\/.+|sg[0-9]+|sr[0-9]+)$/i
 
 const DANGEROUS_MOUNT_SOURCES = ['/var/run/docker.sock', '/run/docker.sock', '/var/lib/docker']
 
@@ -98,9 +133,18 @@ export function checkNoSysAdmin(config: DevcontainerConfig): SysAdminCheck {
     }
 
     if (flag === '--cap-add') {
-      const cap = pair.value.toUpperCase()
-      if (cap === 'ALL' || cap.includes('SYS_ADMIN')) {
-        return reject(pair, `--cap-add=${cap} would re-introduce SYS_ADMIN`)
+      // Docker accepts comma-separated lists in a single `--cap-add` arg.
+      // Tokenise so `--cap-add=NET_ADMIN,SYS_PTRACE` is caught.
+      const caps = pair.value
+        .split(',')
+        .map((c) => c.trim().toUpperCase())
+        .filter(Boolean)
+      for (const cap of caps) {
+        // Strip `CAP_` prefix — docker accepts both `SYS_ADMIN` and `CAP_SYS_ADMIN`.
+        const normalised = cap.startsWith('CAP_') ? cap.slice(4) : cap
+        if (DENIED_CAPABILITIES.has(normalised)) {
+          return reject(pair, `--cap-add=${cap} grants a sandbox-escape capability`)
+        }
       }
     }
 
@@ -118,8 +162,19 @@ export function checkNoSysAdmin(config: DevcontainerConfig): SysAdminCheck {
       return reject(pair, `${flag}=host shares the host namespace`)
     }
 
-    if (flag === '--device' && DANGEROUS_DEVICES.test(pair.value)) {
-      return reject(pair, `--device=${pair.value} exposes a sensitive device`)
+    if (flag === '--device') {
+      // Docker `--device=<host>[:<container>[:<perms>]]` — only the host
+      // path matters for danger classification.
+      const hostDevice = pair.value.split(':')[0] ?? ''
+      if (DANGEROUS_DEVICES.test(hostDevice)) {
+        return reject(pair, `--device=${pair.value} exposes a sensitive device`)
+      }
+    }
+
+    if (flag === '--device-cgroup-rule') {
+      // Any cgroup rule lets the container access devices directly,
+      // sidestepping `--device`'s allowlist semantics.
+      return reject(pair, '--device-cgroup-rule grants direct device access')
     }
 
     if (flag === '--volume' || flag === '-v' || flag === '--mount') {

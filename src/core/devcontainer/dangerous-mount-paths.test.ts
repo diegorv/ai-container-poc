@@ -17,6 +17,18 @@ describe('findDangerousMountPath', () => {
     }
   })
 
+  it('flags host binary / library directories', () => {
+    for (const p of ['/bin', '/sbin', '/lib', '/lib32', '/lib64', '/libx32']) {
+      expect(findDangerousMountPath(p, '/home/alice'), `${p} should be flagged`).toBeDefined()
+    }
+  })
+
+  it('flags /var/run and /run (parents of docker.sock)', () => {
+    expect(findDangerousMountPath('/var/run', '/home/alice')).toBeDefined()
+    expect(findDangerousMountPath('/run', '/home/alice')).toBeDefined()
+    expect(findDangerousMountPath('/var/run/some-other-sock', '/home/alice')).toBeDefined()
+  })
+
   it('flags subpaths of the dangerous prefixes', () => {
     expect(findDangerousMountPath('/etc/cron.d', '/home/alice')).toBeDefined()
     expect(findDangerousMountPath('/usr/local/bin', '/home/alice')).toBeDefined()

@@ -13,6 +13,8 @@ const DANGEROUS_PREFIXES = [
   '/var/run/docker.sock',
   '/run/docker.sock',
   '/var/lib/docker',
+  '/var/run', // contains docker.sock and other host runtime sockets
+  '/run', // same — modern systemd hosts put docker.sock here
   '/etc',
   '/proc',
   '/sys',
@@ -20,6 +22,12 @@ const DANGEROUS_PREFIXES = [
   '/usr',
   '/boot',
   '/root',
+  '/bin', // host executables
+  '/sbin',
+  '/lib', // shared libraries; overwrite = code execution everywhere
+  '/lib32',
+  '/lib64',
+  '/libx32',
 ] as const
 
 const DANGEROUS_HOME_DIRS = ['.ssh', '.aws', '.gcp', '.azure', '.kube', '.docker'] as const

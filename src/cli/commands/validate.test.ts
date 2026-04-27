@@ -67,4 +67,17 @@ describe('validate command', () => {
     await validate({ cwd: '/proj' }, deps)
     expect(deps.logger.has('success', 'is valid')).toBe(true)
   })
+
+  it('rejects a bind mount of $HOME/.ssh (uses env.HOME)', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(
+      p('/proj/.devcontainer/devcontainer.json'),
+      JSON.stringify({
+        name: 'sandbox',
+        mounts: ['source=/home/alice/.ssh,target=/keys,type=bind'],
+      }),
+    )
+    await expect(validate({ cwd: '/proj' }, deps)).rejects.toThrow(/dangerous/i)
+  })
 })

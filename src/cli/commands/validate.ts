@@ -19,7 +19,7 @@ export interface ValidateArgs {
  * plugs into shell pipelines without extra parsing.
  */
 export async function validate(args: ValidateArgs, deps: CommandDeps): Promise<void> {
-  const { fs, logger } = deps
+  const { env, fs, logger } = deps
   const cwd = operatorPath(args.cwd)
   const dcJson = devcontainerJsonOf(cwd)
 
@@ -57,7 +57,7 @@ export async function validate(args: ValidateArgs, deps: CommandDeps): Promise<v
     )
   }
 
-  const dangerous = findDangerousFields(parsed.data)
+  const dangerous = findDangerousFields(parsed.data, env.HOME)
   if (dangerous.length > 0) {
     const lines = dangerous.map((d) => `  - ${d.field}: ${d.reason}`).join('\n')
     throw new CliError(
