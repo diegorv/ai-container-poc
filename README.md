@@ -21,8 +21,9 @@ Designed for security audits, untrusted repositories, multi-repo engagements, an
   - [Docker Desktop](https://docker.com/products/docker-desktop) (running)
   - [OrbStack](https://orbstack.dev/)
   - [Colima](https://github.com/abiosoft/colima): `brew install colima docker && colima start`
-- **devcontainer CLI**: `npm install -g @devcontainers/cli`
 - **Node.js 22+** for `mydevc` itself.
+
+The `devcontainer` CLI is a runtime dependency of mydevc and ships in `dependencies` — `pnpm install` (or any global install of mydevc) pulls it automatically. mydevc verifies both `devcontainer` and `docker` are on `PATH` on the first call that needs them and throws a clear error with a fix suggestion otherwise, so you'll never see a raw `ENOENT` from execa.
 
 ## Install
 
@@ -59,6 +60,8 @@ mydevc rebuild
 
 ## Commands
 
+Every command accepts the global `-v|--verbose` (debug-level logs) and `-q|--quiet` (errors only) flags before the subcommand.
+
 ```
 mydevc .                      Install template + start container in current dir
 mydevc template [dir]         Copy devcontainer template into directory
@@ -75,9 +78,11 @@ mydevc destroy [-f]           Remove container, volumes and images
 mydevc info [--json]          Show project state (container, image, volumes, mounts)
 mydevc logs [-f] [--tail N]   Tail / follow `docker logs` for the project's container
 mydevc ps                     List every devcontainer across the host
+mydevc validate               Validate .devcontainer/devcontainer.json (Zod + SYS_ADMIN)
 mydevc clean [flags]          Granular cleanup: --container --volumes --images --cache
 mydevc self-install           Symlink mydevc into ~/.local/bin
 mydevc update                 git pull this repo
+mydevc completion <shell>     Print bash/zsh/fish completion script to stdout
 mydevc help                   Show this help
 ```
 
@@ -138,6 +143,43 @@ mydevc clean --container --volumes --images --dry-run    # preview what would be
 ```
 
 Selecting nothing is an error (use `destroy` if you want everything). The `--cache` flag is global, the others are per-project.
+
+### Validating `devcontainer.json` — `mydevc validate`
+
+Plug into a project's CI to catch malformed devcontainer configs before someone tries to `mydevc up`:
+
+```bash
+mydevc validate
+# ✓ devcontainer.json at /…/devcontainer.json is valid.
+
+# On failure (exit 1):
+# mydevc: devcontainer.json failed schema validation (2 issues):
+#   - runArgs: Expected array, received string
+#   - mounts: Expected array, received number
+```
+
+The check runs the same Zod schema mydevc applies internally plus the `SYS_ADMIN`-in-`runArgs` guard.
+
+### Shell completion
+
+```bash
+source <(mydevc completion bash)             # in ~/.bashrc
+source <(mydevc completion zsh)              # in ~/.zshrc, after compinit
+mydevc completion fish > ~/.config/fish/completions/mydevc.fish
+```
+
+Each script knows the full command list and per-command flags (`--secure`, `--json`, `--tail`, `--dry-run`, etc.).
+
+### Verbosity
+
+Two global flags control logger output, available before any subcommand:
+
+```bash
+mydevc -v rebuild        # debug logs + spinner internals
+mydevc --quiet destroy   # only print failures
+```
+
+Defaults to info-level. `--verbose` wins if both are passed.
 
 ## Session sync for `/insights`
 
@@ -233,11 +275,18 @@ pnpm test                 # vitest
 pnpm test:unit            # src/**
 pnpm test:integration     # tests/integration
 pnpm test:e2e             # tests/e2e (rebuilds dist/ on every run)
+pnpm test:coverage        # vitest run --coverage
 pnpm build                # tsup → dist/
 pnpm check                # biome + tsc + vitest run
 ```
 
-GitHub Actions runs the same checks plus `pnpm audit --audit-level=high`, a bundle-size budget (`dist/cli/index.js` < 60KB, `dist/container-init/index.js` < 20KB) and, when `renovate.json` changes, `renovate-config-validator`.
+GitHub Actions runs the same checks plus:
+
+- `pnpm audit --audit-level=high` — fails on known high/critical vulns in installed deps.
+- Bundle-size budget — `dist/cli/index.js` < 60KB, `dist/container-init/index.js` < 20KB.
+- v8 coverage with thresholds (lines/funcs/statements ≥ 85%, branches ≥ 75%); the `coverage/` folder is uploaded as an artifact.
+- `actions/dependency-review-action` on PRs — blocks new dependencies with high vulns or licenses outside the allow-list.
+- When `renovate.json` changes — `renovate-config-validator`.
 
 CLI output is auto-styled: when stderr is a TTY, `mydevc` prints colored level glyphs and shows a spinner during long ops (`up`, `rebuild`, `mount`). When piped or redirected (`2>log.txt`, CI), the output collapses to `[level] message` lines and the spinner becomes plain start/done log entries.
 
