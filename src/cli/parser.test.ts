@@ -66,6 +66,36 @@ describe('parseArgs', () => {
     })
   })
 
+  it('parses info', () => {
+    expect(parseArgs(['info'], ctx)).toEqual({ name: 'info', cwd: '/proj' })
+  })
+
+  it('parses clean with multiple selection flags', () => {
+    expect(parseArgs(['clean', '--volumes', '--images', '--dry-run'], ctx)).toEqual({
+      name: 'clean',
+      cwd: '/proj',
+      container: false,
+      volumes: true,
+      images: true,
+      cache: false,
+      force: false,
+      dryRun: true,
+    })
+  })
+
+  it('parses clean -f for unattended runs', () => {
+    expect(parseArgs(['clean', '--container', '-f'], ctx)).toEqual({
+      name: 'clean',
+      cwd: '/proj',
+      container: true,
+      volumes: false,
+      images: false,
+      cache: false,
+      force: true,
+      dryRun: false,
+    })
+  })
+
   it('throws on unknown command', () => {
     expect(() => parseArgs(['banana'], ctx)).toThrow(/Unknown command: banana/)
   })

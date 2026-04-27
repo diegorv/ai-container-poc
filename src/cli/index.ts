@@ -8,12 +8,14 @@ import { createPinoLogger } from '@/adapters/logger/pino-logger'
 import { ttyPrompt } from '@/adapters/prompt/tty-prompt'
 import { execaShell } from '@/adapters/shell/execa-shell'
 import { EnvSchema } from '@/schemas/env'
+import { clean } from './commands/clean'
 import { cp } from './commands/cp'
 import { destroy } from './commands/destroy'
 import { dot } from './commands/dot'
 import { down } from './commands/down'
 import { exec } from './commands/exec'
 import { HELP_TEXT } from './commands/help'
+import { info } from './commands/info'
 import { mount } from './commands/mount'
 import { rebuild } from './commands/rebuild'
 import { selfInstall } from './commands/self-install'
@@ -93,6 +95,12 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
       return 0
     case 'destroy':
       await destroy(cmd, deps)
+      return 0
+    case 'info':
+      await info(cmd, deps)
+      return 0
+    case 'clean':
+      await clean(cmd, deps)
       return 0
     case 'upgrade':
       return upgrade(cmd, deps)

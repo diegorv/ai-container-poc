@@ -1,0 +1,121 @@
+import { createFakeDevcontainer } from '@/adapters/devcontainer/fake-devcontainer'
+import { createFakeDocker } from '@/adapters/docker/fake-docker'
+import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
+import { createMemoryLogger } from '@/adapters/logger/memory-logger'
+import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
+import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { describe, expect, it } from 'vitest'
+import type { CommandDeps } from '../deps'
+import { info } from './info'
+
+function buildDeps(
+  docker: ReturnType<typeof createFakeDocker> = createFakeDocker(),
+): CommandDeps & {
+  fs: ReturnType<typeof createMemoryFs>
+  docker: ReturnType<typeof createFakeDocker>
+  logger: ReturnType<typeof createMemoryLogger>
+} {
+  return {
+    fs: createMemoryFs(),
+    docker,
+    devcontainer: createFakeDevcontainer(),
+    shell: createFakeShell(),
+    logger: createMemoryLogger(),
+    prompt: createScriptedPrompt(),
+    templatesDir: '/tpl',
+    env: { HOME: '/home/alice' },
+  }
+}
+
+describe('info command', () => {
+  it('warns when .devcontainer/ is missing', async () => {
+    const deps = buildDeps()
+    await info({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('warn', 'No .devcontainer/')).toBe(true)
+    expect(deps.logger.has('info', 'mydevc template')).toBe(true)
+  })
+
+  it('warns when devcontainer exists but no container is running', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{}')
+    await info({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('warn', 'No devcontainer found')).toBe(true)
+  })
+
+  it('reports container state, image, and volumes', async () => {
+    const docker = createFakeDocker({
+      containers: [
+        {
+          id: 'abc123def4567',
+          name: 'focused_einstein',
+          image: 'vsc-crypto',
+          state: 'running',
+          labels: { 'devcontainer.local_folder': '/proj' },
+          mounts: [
+            { type: 'volume', name: 'cmdhist', destination: '/commandhistory' },
+            { type: 'volume', name: 'claudevol', destination: '/home/vscode/.claude' },
+            { type: 'bind', source: '/h/g', destination: '/home/vscode/.gitconfig' },
+          ],
+        },
+      ],
+    })
+    const deps = buildDeps(docker)
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{}')
+
+    await info({ cwd: '/proj' }, deps)
+
+    expect(deps.logger.has('info', 'focused_einstein')).toBe(true)
+    expect(deps.logger.has('info', 'abc123def456')).toBe(true)
+    expect(deps.logger.has('info', 'running')).toBe(true)
+    expect(deps.logger.has('info', 'Volumes (2)')).toBe(true)
+    expect(deps.logger.has('info', 'cmdhist')).toBe(true)
+    expect(deps.logger.has('info', 'claudevol')).toBe(true)
+  })
+
+  it('detects the -uid image variant', async () => {
+    const docker = createFakeDocker({
+      containers: [
+        {
+          id: 'cid',
+          image: 'vsc-crypto',
+          labels: { 'devcontainer.local_folder': '/proj' },
+          state: 'exited',
+        },
+      ],
+      images: ['vsc-crypto', 'vsc-crypto-uid'],
+    })
+    const deps = buildDeps(docker)
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{}')
+    await info({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('info', '-uid')).toBe(true)
+  })
+
+  it('lists custom mounts from devcontainer.json', async () => {
+    const docker = createFakeDocker({
+      containers: [
+        {
+          id: 'cid',
+          labels: { 'devcontainer.local_folder': '/proj' },
+          state: 'running',
+        },
+      ],
+    })
+    const deps = buildDeps(docker)
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile(
+      '/proj/.devcontainer/devcontainer.json',
+      JSON.stringify({
+        mounts: [
+          'source=cmdhist,target=/commandhistory,type=volume',
+          'source=/h/data,target=/data,type=bind',
+        ],
+      }),
+    )
+    await info({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('info', 'Custom mounts (1)')).toBe(true)
+    expect(deps.logger.has('info', 'source=/h/data,target=/data,type=bind')).toBe(true)
+  })
+})
