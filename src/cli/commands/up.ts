@@ -31,7 +31,7 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
     }
   }
 
-  logger.info(`Starting devcontainer in ${args.cwd}…`)
-  await devcontainer.up({ workspaceFolder: args.cwd })
-  logger.success('Devcontainer started.')
+  await logger.withSpinner(`Starting devcontainer in ${args.cwd}`, () =>
+    devcontainer.up({ workspaceFolder: args.cwd }),
+  )
 }

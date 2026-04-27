@@ -38,4 +38,22 @@ describe('pretty-logger', () => {
     expect(writeSpy).not.toHaveBeenCalledWith(expect.stringContaining('skip'))
     expect(writeSpy).toHaveBeenCalledWith('[warn] keep\n')
   })
+
+  it('withSpinner falls back to start/done lines when spinner is off', async () => {
+    const logger = createPrettyLogger({ color: false, spinner: false })
+    const value = await logger.withSpinner('working', async () => 42)
+    expect(value).toBe(42)
+    expect(writeSpy).toHaveBeenCalledWith('[info] working\n')
+    expect(writeSpy).toHaveBeenCalledWith('[success] working\n')
+  })
+
+  it('withSpinner emits an error line on failure and rethrows', async () => {
+    const logger = createPrettyLogger({ color: false, spinner: false })
+    await expect(
+      logger.withSpinner('boom', async () => {
+        throw new Error('nope')
+      }),
+    ).rejects.toThrow(/nope/)
+    expect(writeSpy).toHaveBeenCalledWith('[error] boom\n')
+  })
 })

@@ -42,7 +42,8 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
   await fs.writeFile(dcJson, `${JSON.stringify({ ...config, mounts: updatedMounts }, null, 2)}\n`)
 
   logger.info(`Adding mount: ${resolvedHost} → ${args.containerPath}`)
-  logger.info('Recreating container with new mount…')
-  await devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true })
+  await logger.withSpinner('Recreating container with new mount', () =>
+    devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true }),
+  )
   logger.success(`Mount added: ${resolvedHost} → ${args.containerPath}`)
 }

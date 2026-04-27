@@ -25,9 +25,18 @@ const STYLES: Record<LogLevel, LevelStyle> = {
 export interface PrettyLoggerOptions {
   /** Force-enable or force-disable colors. Defaults to `process.stderr.isTTY`. */
   color?: boolean
+  /**
+   * Force-enable or force-disable the spinner. Defaults to
+   * `process.stderr.isTTY`. Disable to keep output linear in CI.
+   */
+  spinner?: boolean
   /** Minimum level to print (debug | info | warn | error). Defaults to `info`. */
   level?: LogLevel
 }
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const
+const SPINNER_INTERVAL_MS = 80
+const ERASE_LINE = '\x1b[2K\r'
 
 const ORDER: Record<LogLevel, number> = {
   debug: 10,
@@ -46,6 +55,7 @@ const ORDER: Record<LogLevel, number> = {
  */
 export function createPrettyLogger(options: PrettyLoggerOptions = {}): Logger {
   const useColor = options.color ?? process.stderr.isTTY === true
+  const useSpinner = options.spinner ?? process.stderr.isTTY === true
   const minLevel = ORDER[options.level ?? 'info']
 
   function write(level: LogLevel, msg: string): void {
@@ -58,11 +68,48 @@ export function createPrettyLogger(options: PrettyLoggerOptions = {}): Logger {
     }
   }
 
+  async function withSpinner<T>(message: string, fn: () => Promise<T>): Promise<T> {
+    if (!useSpinner) {
+      write('info', message)
+      try {
+        const result = await fn()
+        write('success', message)
+        return result
+      } catch (err) {
+        write('error', message)
+        throw err
+      }
+    }
+
+    let frame = 0
+    const tick = (): void => {
+      const glyph = SPINNER_FRAMES[frame % SPINNER_FRAMES.length]
+      const colored = useColor ? `${ANSI.blue}${glyph}${ANSI.reset}` : glyph
+      process.stderr.write(`${ERASE_LINE}${colored} ${message}`)
+      frame += 1
+    }
+    tick()
+    const interval = setInterval(tick, SPINNER_INTERVAL_MS)
+    try {
+      const result = await fn()
+      clearInterval(interval)
+      const ok = useColor ? `${ANSI.green}✓${ANSI.reset}` : '✓'
+      process.stderr.write(`${ERASE_LINE}${ok} ${message}\n`)
+      return result
+    } catch (err) {
+      clearInterval(interval)
+      const fail = useColor ? `${ANSI.red}✗${ANSI.reset}` : '✗'
+      process.stderr.write(`${ERASE_LINE}${fail} ${message}\n`)
+      throw err
+    }
+  }
+
   return {
     debug: (m) => write('debug', m),
     info: (m) => write('info', m),
     success: (m) => write('success', m),
     warn: (m) => write('warn', m),
     error: (m) => write('error', m),
+    withSpinner,
   }
 }

@@ -26,7 +26,7 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
     }
   }
 
-  logger.info(`Rebuilding devcontainer in ${args.cwd}…`)
-  await devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true })
-  logger.success('Devcontainer rebuilt.')
+  await logger.withSpinner(`Rebuilding devcontainer in ${args.cwd}`, () =>
+    devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true }),
+  )
 }
