@@ -1,6 +1,8 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
+import { findDangerousMountPath } from '@/core/devcontainer/dangerous-mount-paths'
 import { addBindMount } from '@/core/devcontainer/manipulate-mounts'
 import { CliError } from '@/lib/cli-error'
+import { hasJsoncSyntax } from '@/lib/jsonc-detect'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -9,6 +11,8 @@ export interface MountArgs {
   hostPath: string
   containerPath: string
   readonly?: boolean
+  /** Override the host-path denylist (Docker socket, /etc, ~/.ssh, …). */
+  allowDangerous?: boolean
 }
 
 /**
@@ -17,7 +21,7 @@ export interface MountArgs {
  * then recreates the container so the new mount takes effect.
  */
 export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
-  const { devcontainer, fs, logger } = deps
+  const { devcontainer, env, fs, logger } = deps
   const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
 
   if (!(await fs.exists(dcJson))) {
@@ -31,7 +35,20 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
   }
   const resolvedHost = await fs.realpath(args.hostPath)
 
+  const danger = findDangerousMountPath(resolvedHost, env.HOME)
+  if (danger && !args.allowDangerous) {
+    throw new CliError(`Refusing to mount ${danger.path}: ${danger.reason}.`, {
+      suggestion:
+        'If you really need this mount, re-run with `--allow-dangerous`. Read the README "What you almost never want to mount" table first.',
+    })
+  }
+
   const raw = await fs.readFile(dcJson)
+  if (hasJsoncSyntax(raw)) {
+    logger.warn(
+      `${dcJson} appears to use JSONC (comments / trailing commas). Rewriting it will drop them. Consider editing the file manually if you want to preserve formatting.`,
+    )
+  }
   const config = DevcontainerConfigSchema.parse(JSON.parse(raw))
   const updatedMounts = addBindMount({
     mounts: config.mounts,

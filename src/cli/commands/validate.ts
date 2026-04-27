@@ -1,4 +1,5 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
+import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
@@ -50,8 +51,17 @@ export async function validate(args: ValidateArgs, deps: CommandDeps): Promise<v
   const sys = checkNoSysAdmin(parsed.data)
   if (!sys.ok) {
     throw new CliError(
-      `runArgs contains SYS_ADMIN (${sys.offendingArg}). This defeats the read-only .devcontainer mount.`,
-      { suggestion: `Remove the SYS_ADMIN entry from runArgs in ${dcJson}.` },
+      `runArgs contains an unsafe entry '${sys.offendingArg}' (${sys.reason ?? 'rejected'}).`,
+      { suggestion: `Remove '${sys.offendingArg}' from runArgs in ${dcJson}.` },
+    )
+  }
+
+  const dangerous = findDangerousFields(parsed.data)
+  if (dangerous.length > 0) {
+    const lines = dangerous.map((d) => `  - ${d.field}: ${d.reason}`).join('\n')
+    throw new CliError(
+      `devcontainer.json contains ${dangerous.length} dangerous field(s):\n${lines}`,
+      { suggestion: `Remove the offending fields from ${dcJson}.` },
     )
   }
 

@@ -63,6 +63,44 @@ describe('mount command', () => {
       mount({ cwd: '/proj', hostPath: '/missing', containerPath: '/data' }, deps),
     ).rejects.toThrow(/Host path does not exist/)
   })
+
+  it('rejects mounting the Docker socket without --allow-dangerous', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile(
+      '/proj/.devcontainer/devcontainer.json',
+      JSON.stringify({ name: 'sandbox' }),
+    )
+    await deps.fs.mkdir('/var/run', { recursive: true })
+    await deps.fs.writeFile('/var/run/docker.sock', '')
+
+    await expect(
+      mount({ cwd: '/proj', hostPath: '/var/run/docker.sock', containerPath: '/sock' }, deps),
+    ).rejects.toThrow(/Refusing to mount/)
+  })
+
+  it('allows the Docker socket when --allow-dangerous is set', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile(
+      '/proj/.devcontainer/devcontainer.json',
+      JSON.stringify({ name: 'sandbox', mounts: [] }),
+    )
+    await deps.fs.mkdir('/var/run', { recursive: true })
+    await deps.fs.writeFile('/var/run/docker.sock', '')
+
+    await mount(
+      {
+        cwd: '/proj',
+        hostPath: '/var/run/docker.sock',
+        containerPath: '/sock',
+        allowDangerous: true,
+      },
+      deps,
+    )
+    const after = JSON.parse(await deps.fs.readFile('/proj/.devcontainer/devcontainer.json'))
+    expect(after.mounts).toContain('source=/var/run/docker.sock,target=/sock,type=bind')
+  })
 })
 
 describe('cp command', () => {
@@ -86,5 +124,19 @@ describe('cp command', () => {
     await expect(cp({ cwd: '/proj', containerPath: '/x', hostPath: '/y' }, deps)).rejects.toThrow(
       /No running devcontainer/,
     )
+  })
+
+  it('rejects a containerPath that starts with -', async () => {
+    const deps = buildDeps()
+    await expect(
+      cp({ cwd: '/proj', containerPath: '--archive', hostPath: '/host/out' }, deps),
+    ).rejects.toThrow(/starts with '-'/)
+  })
+
+  it('rejects a hostPath that starts with -', async () => {
+    const deps = buildDeps()
+    await expect(
+      cp({ cwd: '/proj', containerPath: '/workspace/foo', hostPath: '-rf' }, deps),
+    ).rejects.toThrow(/starts with '-'/)
   })
 })

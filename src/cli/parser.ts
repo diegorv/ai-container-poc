@@ -15,7 +15,14 @@ export type ParsedCommand =
   | { name: 'shell'; cwd: string }
   | { name: 'exec'; cwd: string; command: string[] }
   | { name: 'upgrade'; cwd: string }
-  | { name: 'mount'; hostPath: string; containerPath: string; readonly: boolean; cwd: string }
+  | {
+      name: 'mount'
+      hostPath: string
+      containerPath: string
+      readonly: boolean
+      allowDangerous: boolean
+      cwd: string
+    }
   | { name: 'sync'; filter: string | undefined; trusted: boolean }
   | { name: 'cp'; containerPath: string; hostPath: string; cwd: string }
   | { name: 'destroy'; cwd: string; force: boolean }
@@ -131,6 +138,7 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
         hostPath,
         containerPath,
         readonly: hasFlag(args, '--readonly'),
+        allowDangerous: hasFlag(args, '--allow-dangerous'),
         cwd: ctx.cwd,
       }
     }

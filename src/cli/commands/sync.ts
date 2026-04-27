@@ -1,6 +1,7 @@
 import { dirname } from 'node:path'
 import { CONTAINER_LABEL_KEY } from '@/config'
 import { mapWorkspaceKey, resolveClaudeProjectsDir } from '@/core/sync/map-workspace-key'
+import { safeDestPath } from '@/core/sync/safe-dest-path'
 import { walkFiles } from '@/lib/walk-fs'
 import type { ContainerInfo, Docker } from '@/ports/docker'
 import type { FileSystem } from '@/ports/filesystem'
@@ -83,7 +84,13 @@ async function syncOne(
       if (key === undefined) continue
       const destKey = isTopLevelJsonl ? key : mapWorkspaceKey(key, projectName)
       const restPath = isTopLevelJsonl ? file.relativePath : segments.slice(1).join('/')
-      const destPath = `${hostProjects}/${destKey}/${restPath}`
+      // The container is untrusted: refuse to copy when key or restPath
+      // would escape hostProjects via `..` or absolute path segments.
+      const destPath = safeDestPath(hostProjects, destKey, restPath)
+      if (destPath === undefined) {
+        deps.logger.warn(`  Skipping path traversal attempt: ${file.relativePath}`)
+        continue
+      }
       const copied = await copyIfNewer(deps.fs, file.path, destPath)
       if (copied) {
         perKey.set(destKey, (perKey.get(destKey) ?? 0) + 1)

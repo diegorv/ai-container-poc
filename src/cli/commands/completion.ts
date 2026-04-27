@@ -30,7 +30,7 @@ const FLAGS_BY_COMMAND: Record<string, readonly string[]> = {
   '.': ['-f', '--secure'],
   destroy: ['-f'],
   sync: ['--trusted'],
-  mount: ['--readonly'],
+  mount: ['--readonly', '--allow-dangerous'],
   info: ['--json'],
   logs: ['-f', '--follow', '--tail'],
   clean: ['--container', '--volumes', '--images', '--cache', '-f', '--dry-run'],
@@ -54,7 +54,7 @@ _mydevc_complete() {
     template|.) COMPREPLY=( \$(compgen -W "-f --secure" -- "\$cur") ) ;;
     destroy)    COMPREPLY=( \$(compgen -W "-f" -- "\$cur") ) ;;
     sync)       COMPREPLY=( \$(compgen -W "--trusted" -- "\$cur") ) ;;
-    mount)      COMPREPLY=( \$(compgen -W "--readonly" -- "\$cur") ) ;;
+    mount)      COMPREPLY=( \$(compgen -W "--readonly --allow-dangerous" -- "\$cur") ) ;;
     info)       COMPREPLY=( \$(compgen -W "--json" -- "\$cur") ) ;;
     logs)       COMPREPLY=( \$(compgen -W "-f --follow --tail" -- "\$cur") ) ;;
     clean)      COMPREPLY=( \$(compgen -W "--container --volumes --images --cache -f --dry-run" -- "\$cur") ) ;;

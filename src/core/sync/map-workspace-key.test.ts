@@ -34,4 +34,28 @@ describe('resolveClaudeProjectsDir', () => {
   it('uses /root/.claude/projects when user is empty', () => {
     expect(resolveClaudeProjectsDir({ env: [] })).toBe('/root/.claude/projects')
   })
+
+  it('ignores CLAUDE_CONFIG_DIR when it points outside /home/<user> or /root', () => {
+    expect(resolveClaudeProjectsDir({ env: ['CLAUDE_CONFIG_DIR=/etc'], user: 'vscode' })).toBe(
+      '/home/vscode/.claude/projects',
+    )
+    expect(resolveClaudeProjectsDir({ env: ['CLAUDE_CONFIG_DIR=/var/run'], user: 'vscode' })).toBe(
+      '/home/vscode/.claude/projects',
+    )
+  })
+
+  it('ignores CLAUDE_CONFIG_DIR with .. segments', () => {
+    expect(
+      resolveClaudeProjectsDir({
+        env: ['CLAUDE_CONFIG_DIR=/home/vscode/../../etc'],
+        user: 'vscode',
+      }),
+    ).toBe('/home/vscode/.claude/projects')
+  })
+
+  it('accepts /root subpaths', () => {
+    expect(
+      resolveClaudeProjectsDir({ env: ['CLAUDE_CONFIG_DIR=/root/.claude'], user: 'root' }),
+    ).toBe('/root/.claude/projects')
+  })
 })

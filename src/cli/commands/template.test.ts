@@ -35,6 +35,11 @@ function seedTemplates(fs: ReturnType<typeof createMemoryFs>): void {
   fs.writeFile('/tpl/devcontainer.json', TEMPLATE_DEVCONTAINER)
   fs.writeFile('/tpl/.zshrc', TEMPLATE_ZSHRC)
   fs.writeFile('/tpl/firewall-allowlist.txt', TEMPLATE_FIREWALL)
+  fs.writeFile('/tpl/post-install-bootstrap.sh', '#!/usr/bin/env bash\n')
+  fs.writeFile('/tpl/setup-firewall.sh', '#!/usr/bin/env bash\n')
+  fs.writeFile('/tpl/chown-managed.sh', '#!/usr/bin/env bash\n')
+  fs.writeFile('/tpl/sudoers.mydevc', '# sudoers\n')
+  fs.writeFile('/tpl/.dockerignore', '.git\n')
 }
 
 describe('template command', () => {

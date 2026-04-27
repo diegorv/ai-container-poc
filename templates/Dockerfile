@@ -74,8 +74,15 @@ USER vscode
 # Set PATH early so claude and other user-installed binaries are available
 ENV PATH="/home/vscode/.local/bin:$PATH"
 
-# Install Claude Code natively with marketplace plugins
-RUN curl -fsSL https://claude.ai/install.sh | bash && \
+# Install Claude Code natively with marketplace plugins. The installer
+# URL is unversioned, so we cannot pin a SHA256 here without forcing a
+# rebuild on every Anthropic update. We at least force HTTPS + modern
+# TLS, write the script to disk before running it (so the build log
+# contains the exact source executed), and download once into a temp
+# file so a network blip mid-script cannot truncate execution.
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh && \
+  bash /tmp/claude-install.sh && \
+  rm /tmp/claude-install.sh && \
   claude plugin marketplace add anthropics/skills && \
   claude plugin marketplace add trailofbits/skills && \
   claude plugin marketplace add trailofbits/skills-curated
@@ -86,21 +93,39 @@ RUN uv python install 3.13 --default
 # Install ast-grep (AST-based code search)
 RUN uv tool install ast-grep-cli
 
-# Install fnm (Fast Node Manager) and Node 22
+# Install fnm (Fast Node Manager) and Node 22. fnm.vercel.app/install
+# is a redirector to the latest GitHub release script; same caveat as
+# claude.ai/install.sh — no stable SHA to pin against. Same hardening
+# (HTTPS-only, written to disk before exec).
 ARG NODE_VERSION=22
 ENV FNM_DIR="/home/vscode/.fnm"
-RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$FNM_DIR" --skip-shell && \
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://fnm.vercel.app/install -o /tmp/fnm-install.sh && \
+  bash /tmp/fnm-install.sh --install-dir "$FNM_DIR" --skip-shell && \
+  rm /tmp/fnm-install.sh && \
   export PATH="$FNM_DIR:$PATH" && \
   eval "$(fnm env)" && \
   fnm install ${NODE_VERSION} && \
   fnm default ${NODE_VERSION}
 
-# Install Oh My Zsh
+# Install Oh My Zsh. zsh-in-docker.sh is fetched from a tag-pinned
+# release URL; pass ZSH_IN_DOCKER_SHA256 to verify the script before
+# executing. Defaults to "" (no verification) so contributors don't
+# have to round-trip a hash for unrelated changes — Renovate updates
+# both the version and the hash together. Pin a non-empty value in
+# CI / production builds.
 # renovate: datasource=github-releases depName=deluan/zsh-in-docker
 ARG ZSH_IN_DOCKER_VERSION=1.2.1
-RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
-  -p git \
-  -x
+ARG ZSH_IN_DOCKER_SHA256=""
+RUN curl --proto '=https' --tlsv1.2 -fsSL \
+    "https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh" \
+    -o /tmp/zsh-in-docker.sh && \
+  if [ -n "${ZSH_IN_DOCKER_SHA256}" ]; then \
+    echo "${ZSH_IN_DOCKER_SHA256}  /tmp/zsh-in-docker.sh" | sha256sum -c -; \
+  else \
+    echo "[mydevc] WARNING: building without ZSH_IN_DOCKER_SHA256 pinned" >&2; \
+  fi && \
+  sh /tmp/zsh-in-docker.sh -p git -x && \
+  rm /tmp/zsh-in-docker.sh
 
 # Copy zsh configuration
 COPY --chown=vscode:vscode .zshrc /home/vscode/.zshrc.custom
@@ -108,15 +133,27 @@ COPY --chown=vscode:vscode .zshrc /home/vscode/.zshrc.custom
 # Append custom zshrc to the main one
 RUN echo 'source ~/.zshrc.custom' >> /home/vscode/.zshrc
 
-# Copy mydevc-init bundle, bootstrap script, and firewall setup. The
-# bundle is built by `pnpm build` and includes the dist/container-init/
-# entry along with the templates/ directory.
+# Copy mydevc-init bundle, bootstrap script, firewall setup, and chown
+# wrapper. The bundle is built by `pnpm build` and includes the
+# dist/container-init/ entry along with the templates/ directory.
 COPY --chown=vscode:vscode dist/container-init/index.js /opt/mydevc/container-init.js
 COPY --chown=vscode:vscode post-install-bootstrap.sh /opt/mydevc/post-install-bootstrap.sh
-COPY --chown=vscode:vscode setup-firewall.sh /opt/mydevc/setup-firewall.sh
+# These two scripts are root-owned and read-only for non-root users:
+# vscode invokes them via sudo, but cannot edit them.
+COPY setup-firewall.sh /opt/mydevc/setup-firewall.sh
+COPY chown-managed.sh /opt/mydevc/chown-managed.sh
+COPY sudoers.mydevc /etc/sudoers.d/00-mydevc
 
 # Expose mydevc-init on PATH so postCreateCommand can call it directly.
+# Replace Microsoft's broad `vscode ALL=(root) NOPASSWD:ALL` with our
+# narrow allowlist (sudoers.mydevc).
 USER root
 RUN ln -sf /opt/mydevc/container-init.js /usr/local/bin/mydevc-init && \
-  chmod +x /opt/mydevc/post-install-bootstrap.sh /opt/mydevc/container-init.js /opt/mydevc/setup-firewall.sh
+  chmod +x /opt/mydevc/post-install-bootstrap.sh /opt/mydevc/container-init.js && \
+  chmod 0500 /opt/mydevc/setup-firewall.sh /opt/mydevc/chown-managed.sh && \
+  chown root:root /opt/mydevc/setup-firewall.sh /opt/mydevc/chown-managed.sh && \
+  chmod 0440 /etc/sudoers.d/00-mydevc && \
+  chown root:root /etc/sudoers.d/00-mydevc && \
+  rm -f /etc/sudoers.d/vscode && \
+  visudo -cf /etc/sudoers.d/00-mydevc
 USER vscode

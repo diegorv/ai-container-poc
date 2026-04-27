@@ -81,24 +81,24 @@ export async function destroy(args: DestroyArgs, deps: CommandDeps): Promise<voi
     logger.info('Stopping container…')
     try {
       await docker.stopContainer(res.container.id)
-    } catch {
-      // best-effort: continue to remove
+    } catch (err) {
+      logger.warn(`could not stop container: ${(err as Error).message}`)
     }
   }
 
   logger.info('Removing container…')
   try {
     await docker.removeContainer(res.container.id, { force: true })
-  } catch {
-    // best-effort
+  } catch (err) {
+    logger.warn(`could not remove container: ${(err as Error).message}`)
   }
 
   for (const v of res.volumes) {
     logger.info(`Removing volume: ${v}`)
     try {
       await docker.removeVolume(v, { force: true })
-    } catch {
-      // best-effort
+    } catch (err) {
+      logger.warn(`could not remove volume ${v}: ${(err as Error).message}`)
     }
   }
 
@@ -106,16 +106,16 @@ export async function destroy(args: DestroyArgs, deps: CommandDeps): Promise<voi
     logger.info(`Removing image: ${res.imageBase}`)
     try {
       await docker.removeImage(res.imageBase, { force: true })
-    } catch {
-      // best-effort
+    } catch (err) {
+      logger.warn(`could not remove image ${res.imageBase}: ${(err as Error).message}`)
     }
   }
   if (res.imageUid && (await docker.imageExists(res.imageUid))) {
     logger.info(`Removing image: ${res.imageUid}`)
     try {
       await docker.removeImage(res.imageUid, { force: true })
-    } catch {
-      // best-effort
+    } catch (err) {
+      logger.warn(`could not remove image ${res.imageUid}: ${(err as Error).message}`)
     }
   }
 

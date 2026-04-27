@@ -67,8 +67,22 @@ describe('parseArgs', () => {
       hostPath: '/h/data',
       containerPath: '/data',
       readonly: true,
+      allowDangerous: false,
       cwd: '/proj',
     })
+  })
+
+  it('parses mount with --allow-dangerous flag', () => {
+    expect(parseArgs(['mount', '/var/run/docker.sock', '/sock', '--allow-dangerous'], ctx)).toEqual(
+      {
+        name: 'mount',
+        hostPath: '/var/run/docker.sock',
+        containerPath: '/sock',
+        readonly: false,
+        allowDangerous: true,
+        cwd: '/proj',
+      },
+    )
   })
 
   it('throws helpful error on missing mount args', () => {

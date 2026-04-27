@@ -1,0 +1,14 @@
+# Replaces Microsoft devcontainers/base's default `vscode ALL=(root)
+# NOPASSWD:ALL` with a narrow allowlist. Without this, code running
+# inside the container (Claude included) could simply
+# `sudo iptables -F OUTPUT` and bypass --secure entirely.
+#
+# Two commands need root: setup-firewall.sh applies/refreshes the
+# iptables allowlist, and chown-managed.sh chowns the named volumes
+# whose ownership comes from the Docker daemon.
+#
+# Users who need broader sudo for trusted workflows (e.g. `apt-get
+# install` during exploration) can delete this file in a custom
+# Dockerfile layer — opt-in, not opt-out.
+vscode ALL=(root) NOPASSWD: /opt/mydevc/setup-firewall.sh
+vscode ALL=(root) NOPASSWD: /opt/mydevc/chown-managed.sh

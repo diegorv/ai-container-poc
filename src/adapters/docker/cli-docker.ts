@@ -170,7 +170,9 @@ export function createCliDocker(shell: Shell): Docker {
     },
 
     async cp({ source, dest }) {
-      const r = await dockerExec(['cp', source, dest])
+      // `--` separates positional args from flags so a hostile source/dest
+      // starting with `-` cannot be re-interpreted as a docker cp flag.
+      const r = await dockerExec(['cp', '--', source, dest])
       check(r, 'cp')
     },
 
