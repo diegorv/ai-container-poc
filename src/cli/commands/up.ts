@@ -1,6 +1,7 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
+import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
@@ -15,7 +16,7 @@ export interface UpArgs {
  * devcontainer CLI to bring the container up.
  */
 export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
-  const { devcontainer, fs, logger } = deps
+  const { devcontainer, docker, fs, logger } = deps
   const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
 
   if (await fs.exists(dcJson)) {
@@ -41,4 +42,9 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
   await logger.withSpinner(`Starting devcontainer in ${args.cwd}`, () =>
     devcontainer.up({ workspaceFolder: args.cwd }),
   )
+
+  // Don't trust the in-container postStartCommand to apply the firewall
+  // — a malicious devcontainer.json could override it. Re-run from the
+  // host and abort if the script fails.
+  await enforceFirewall(args.cwd, { docker, fs, logger })
 }

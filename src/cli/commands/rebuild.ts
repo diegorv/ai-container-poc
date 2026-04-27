@@ -1,6 +1,7 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
+import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
@@ -11,7 +12,7 @@ export interface RebuildArgs {
 
 /** Ports `cmd_rebuild` from install.sh — `up --remove-existing-container`. */
 export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<void> {
-  const { devcontainer, fs, logger } = deps
+  const { devcontainer, docker, fs, logger } = deps
   const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
 
   if (await fs.exists(dcJson)) {
@@ -37,4 +38,6 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
   await logger.withSpinner(`Rebuilding devcontainer in ${args.cwd}`, () =>
     devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true }),
   )
+
+  await enforceFirewall(args.cwd, { docker, fs, logger })
 }
