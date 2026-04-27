@@ -18,6 +18,8 @@ Commands:
     sync [filter]          Sync Claude sessions from devcontainers to host
     cp <ct> <host>         Copy a path from the container to the host
     destroy [-f]           Remove container, volumes and images
+    info                   Show project state (container, image, volumes, mounts)
+    clean [flags]          Granular cleanup: --container --volumes --images --cache
     self-install           Symlink mydevc into ~/.local/bin
     update                 Pull the latest mydevc from git
     help                   Show this help message
@@ -35,4 +37,7 @@ Examples:
     mydevc cp /workspace/foo .     Copy a path from container to host
     mydevc destroy                 Remove container, volumes and images
     mydevc destroy -f              Skip confirmation prompts
+    mydevc info                    Show project state at a glance
+    mydevc clean --volumes -f      Drop only the docker volumes
+    mydevc clean --images --cache  Free disk: image + builder cache
 `

@@ -19,6 +19,17 @@ export type ParsedCommand =
   | { name: 'sync'; filter: string | undefined; trusted: boolean }
   | { name: 'cp'; containerPath: string; hostPath: string; cwd: string }
   | { name: 'destroy'; cwd: string; force: boolean }
+  | { name: 'info'; cwd: string }
+  | {
+      name: 'clean'
+      cwd: string
+      container: boolean
+      volumes: boolean
+      images: boolean
+      cache: boolean
+      force: boolean
+      dryRun: boolean
+    }
   | { name: 'self-install' }
   | { name: 'update' }
 
@@ -92,6 +103,19 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
     }
     case 'destroy':
       return { name: 'destroy', cwd: ctx.cwd, force: hasFlag(args, '-f') }
+    case 'info':
+      return { name: 'info', cwd: ctx.cwd }
+    case 'clean':
+      return {
+        name: 'clean',
+        cwd: ctx.cwd,
+        container: hasFlag(args, '--container'),
+        volumes: hasFlag(args, '--volumes'),
+        images: hasFlag(args, '--images'),
+        cache: hasFlag(args, '--cache'),
+        force: hasFlag(args, '-f'),
+        dryRun: hasFlag(args, '--dry-run'),
+      }
     case 'self-install':
       return { name: 'self-install' }
     case 'update':

@@ -9,10 +9,10 @@ const cliJs = join(repoRoot, 'dist/cli/index.js')
 const initJs = join(repoRoot, 'dist/container-init/index.js')
 
 beforeAll(() => {
-  // Ensure the dist/ output is available for the tests below.
-  if (!existsSync(cliJs) || !existsSync(initJs)) {
-    execSync('pnpm build', { cwd: repoRoot, stdio: 'inherit' })
-  }
+  // Always build so the bundle reflects the current source. tsup is fast
+  // enough (~30ms) that an unconditional build is preferable to drifting
+  // dist/ contents.
+  execSync('pnpm build', { cwd: repoRoot, stdio: 'inherit' })
 }, 60_000)
 
 describe('mydevc CLI (built bundle)', () => {
@@ -30,6 +30,8 @@ describe('mydevc CLI (built bundle)', () => {
       'mount',
       'sync',
       'cp',
+      'info',
+      'clean',
       'self-install',
       'update',
     ]) {
