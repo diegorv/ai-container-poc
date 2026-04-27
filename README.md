@@ -72,7 +72,9 @@ mydevc mount <host> <ct>      Add a host→container bind mount
 mydevc sync [filter]          Sync Claude sessions from devcontainers to host
 mydevc cp <ct> <host>         Copy a path from container to host
 mydevc destroy [-f]           Remove container, volumes and images
-mydevc info                   Show project state (container, image, volumes, mounts)
+mydevc info [--json]          Show project state (container, image, volumes, mounts)
+mydevc logs [-f] [--tail N]   Tail / follow `docker logs` for the project's container
+mydevc ps                     List every devcontainer across the host
 mydevc clean [flags]          Granular cleanup: --container --volumes --images --cache
 mydevc self-install           Symlink mydevc into ~/.local/bin
 mydevc update                 git pull this repo
@@ -104,6 +106,24 @@ Custom mounts (1):
 ```
 
 Different empty states for "no `.devcontainer/`" vs "no container created yet" point you at the right next command.
+
+For scripts, `mydevc info --json` emits the same data on stdout as a JSON document. Pipe it into `jq` and friends:
+
+```bash
+$ mydevc info --json | jq -r '.container.state'
+running
+```
+
+### Looking around — `mydevc logs` and `mydevc ps`
+
+```bash
+mydevc logs                  # snapshot of `docker logs` for the project
+mydevc logs -f               # follow (Ctrl-C to stop)
+mydevc logs --tail 200       # pass --tail through to docker
+mydevc ps                    # one row per devcontainer, across all workspaces
+```
+
+`ps` is handy when juggling several projects — it shows every container labelled with `devcontainer.local_folder` regardless of where you ran the command from.
 
 ### Granular cleanup — `mydevc clean`
 
@@ -190,7 +210,8 @@ src/
   container-init/   # mydevc-init steps + runner + entry
     steps/          # claude-bypass, claude-settings, tmux-config,
                     # directory-ownership, git-config
-  lib/              # generic utilities (result, deep-merge, walk-fs, path-utils)
+  lib/              # generic utilities (result, deep-merge, walk-fs,
+                    # path-utils, cli-error)
   config.ts         # invariant constants
 templates/          # Dockerfile, devcontainer.json, .zshrc, .dockerignore,
                     # post-install-bootstrap.sh, setup-firewall.sh,
@@ -211,10 +232,14 @@ pnpm lint                 # biome check --write
 pnpm test                 # vitest
 pnpm test:unit            # src/**
 pnpm test:integration     # tests/integration
-pnpm test:e2e             # tests/e2e (builds dist/ if missing)
+pnpm test:e2e             # tests/e2e (rebuilds dist/ on every run)
 pnpm build                # tsup → dist/
 pnpm check                # biome + tsc + vitest run
 ```
+
+GitHub Actions runs the same checks plus `pnpm audit --audit-level=high`, a bundle-size budget (`dist/cli/index.js` < 60KB, `dist/container-init/index.js` < 20KB) and, when `renovate.json` changes, `renovate-config-validator`.
+
+CLI output is auto-styled: when stderr is a TTY, `mydevc` prints colored level glyphs and shows a spinner during long ops (`up`, `rebuild`, `mount`). When piped or redirected (`2>log.txt`, CI), the output collapses to `[level] message` lines and the spinner becomes plain start/done log entries.
 
 ## Container details
 
