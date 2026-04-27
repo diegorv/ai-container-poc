@@ -31,8 +31,23 @@ iptables -P INPUT ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+# Restrict DNS to whatever Docker injected into /etc/resolv.conf.
+# Without this restriction, port 53 is wide open and any process could
+# tunnel arbitrary data to a chosen resolver (DNS exfiltration).
+RESOLVERS=$(awk '/^nameserver[[:space:]]+/ { print $2 }' /etc/resolv.conf | sort -u)
+if [[ -z "$RESOLVERS" ]]; then
+  # Fallback: Cloudflare + Google when the container has no resolv.conf.
+  RESOLVERS=$'1.1.1.1\n8.8.8.8'
+fi
+for resolver in $RESOLVERS; do
+  case "$resolver" in
+    *:*) ;;  # IPv6 — handled in the ip6tables loop below.
+    *)
+      iptables -A OUTPUT -p udp --dport 53 -d "$resolver" -j ACCEPT
+      iptables -A OUTPUT -p tcp --dport 53 -d "$resolver" -j ACCEPT
+      ;;
+  esac
+done
 
 # IPv6: same posture. Without these, `curl -6 evil.com` would bypass the
 # IPv4 rules entirely on hosts where IPv6 is enabled.
@@ -47,8 +62,14 @@ if command -v ip6tables >/dev/null 2>&1; then
   ip6tables -A OUTPUT -o lo -j ACCEPT
   ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-  ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT
-  ip6tables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+  for resolver in $RESOLVERS; do
+    case "$resolver" in
+      *:*)
+        ip6tables -A OUTPUT -p udp --dport 53 -d "$resolver" -j ACCEPT
+        ip6tables -A OUTPUT -p tcp --dport 53 -d "$resolver" -j ACCEPT
+        ;;
+    esac
+  done
 else
   echo "[mydevc-firewall] ip6tables not installed; IPv6 traffic is unrestricted." >&2
 fi
