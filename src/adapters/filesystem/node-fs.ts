@@ -34,6 +34,7 @@ function toFileStat(s: Awaited<ReturnType<typeof stat>>): FileStat {
     gid: Number(s.gid),
     mode: Number(s.mode),
     size: Number(s.size),
+    mtimeMs: Number(s.mtimeMs),
   }
 }
 

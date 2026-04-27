@@ -1,4 +1,10 @@
-import type { ContainerInfo, Docker, DockerExecResult, VolumeInfo } from '@/ports/docker'
+import type {
+  ContainerInfo,
+  ContainerMount,
+  Docker,
+  DockerExecResult,
+  VolumeInfo,
+} from '@/ports/docker'
 
 export interface FakeContainerSeed {
   id: string
@@ -6,6 +12,9 @@ export interface FakeContainerSeed {
   image?: string
   labels?: Record<string, string>
   state?: string
+  mounts?: ContainerMount[]
+  env?: string[]
+  user?: string
 }
 
 export interface FakeVolumeSeed {
@@ -34,6 +43,11 @@ export interface FakeDockerOptions {
   volumes?: FakeVolumeSeed[]
   images?: string[]
   execResponder?: FakeExecResponder
+  /**
+   * Optional side-effect for `cp`. Lets tests simulate the act of copying
+   * files into the target path (e.g. by seeding an in-memory filesystem).
+   */
+  cpHandler?: (args: FakeDockerCpInvocation) => Promise<void> | void
 }
 
 export interface FakeDocker extends Docker {
@@ -54,6 +68,9 @@ function seedToInfo(seed: FakeContainerSeed): ContainerInfo {
     image: seed.image ?? '',
     labels: seed.labels ?? {},
     state: seed.state ?? 'running',
+    mounts: seed.mounts ?? [],
+    env: seed.env ?? [],
+    user: seed.user ?? '',
   }
 }
 
@@ -155,7 +172,9 @@ export function createFakeDocker(opts: FakeDockerOptions = {}): FakeDocker {
     },
 
     async cp({ source, dest }) {
-      cpCalls.push({ source, dest })
+      const inv = { source, dest }
+      cpCalls.push(inv)
+      if (opts.cpHandler) await opts.cpHandler(inv)
     },
 
     async exec(idOrName, command, options) {

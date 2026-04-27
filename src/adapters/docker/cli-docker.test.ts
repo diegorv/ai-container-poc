@@ -30,7 +30,16 @@ describe('cli-docker via fake-shell', () => {
     const docker = createCliDocker(shell)
     const list = await docker.listContainers({ label: 'devcontainer.local_folder=/proj' })
     expect(list).toEqual([
-      { id: 'abc123', name: 'cool-name', image: 'img', labels: { foo: 'bar' }, state: 'running' },
+      {
+        id: 'abc123',
+        name: 'cool-name',
+        image: 'img',
+        labels: { foo: 'bar' },
+        state: 'running',
+        mounts: [],
+        env: [],
+        user: '',
+      },
     ])
   })
 

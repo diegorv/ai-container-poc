@@ -6,6 +6,8 @@ export interface FileStat {
   gid: number
   mode: number
   size: number
+  /** Last-modified time in milliseconds since epoch. */
+  mtimeMs: number
 }
 
 export interface FileSystem {

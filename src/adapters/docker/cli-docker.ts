@@ -1,12 +1,25 @@
 import type { ContainerInfo, Docker, DockerExecResult, VolumeInfo } from '@/ports/docker'
 import type { Shell } from '@/ports/shell'
 
+interface DockerInspectMount {
+  Type?: string
+  Name?: string
+  Source?: string
+  Destination?: string
+}
+
 interface DockerInspectContainer {
   Id: string
   Name?: string
-  Config?: { Image?: string; Labels?: Record<string, string> | null }
+  Config?: {
+    Image?: string
+    Labels?: Record<string, string> | null
+    Env?: string[] | null
+    User?: string
+  }
   Image?: string
   State?: { Status?: string }
+  Mounts?: DockerInspectMount[]
 }
 
 interface DockerInspectVolume {
@@ -22,18 +35,29 @@ function parseJsonLines<T>(stdout: string): T[] {
     .map((line) => JSON.parse(line) as T)
 }
 
-function parseInspectContainer(json: unknown): ContainerInfo {
-  if (!Array.isArray(json) || json.length === 0) {
-    throw new Error('docker inspect returned no items')
-  }
-  const c = json[0] as DockerInspectContainer
+function inspectToInfo(c: DockerInspectContainer): ContainerInfo {
   return {
     id: c.Id,
     name: (c.Name ?? '').replace(/^\//, ''),
     image: c.Config?.Image ?? c.Image ?? '',
     labels: c.Config?.Labels ?? {},
     state: c.State?.Status ?? '',
+    mounts: (c.Mounts ?? []).map((m) => ({
+      type: m.Type ?? '',
+      name: m.Name,
+      source: m.Source,
+      destination: m.Destination ?? '',
+    })),
+    env: c.Config?.Env ?? [],
+    user: c.Config?.User ?? '',
   }
+}
+
+function parseInspectContainer(json: unknown): ContainerInfo {
+  if (!Array.isArray(json) || json.length === 0) {
+    throw new Error('docker inspect returned no items')
+  }
+  return inspectToInfo(json[0] as DockerInspectContainer)
 }
 
 function parseInspectVolume(json: unknown): VolumeInfo {
@@ -66,13 +90,7 @@ export function createCliDocker(shell: Shell): Docker {
       const inspect = await shell.exec('docker', ['inspect', ...ids])
       check(inspect, 'inspect')
       const parsed = JSON.parse(inspect.stdout) as DockerInspectContainer[]
-      return parsed.map((c) => ({
-        id: c.Id,
-        name: (c.Name ?? '').replace(/^\//, ''),
-        image: c.Config?.Image ?? c.Image ?? '',
-        labels: c.Config?.Labels ?? {},
-        state: c.State?.Status ?? '',
-      }))
+      return parsed.map(inspectToInfo)
     },
 
     async inspectContainer(idOrName) {

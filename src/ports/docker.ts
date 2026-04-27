@@ -1,9 +1,23 @@
+export interface ContainerMount {
+  type: 'volume' | 'bind' | string
+  /** Volume name (when type === 'volume'). */
+  name?: string
+  /** Host source path (when type === 'bind'). */
+  source?: string
+  destination: string
+}
+
 export interface ContainerInfo {
   id: string
   name: string
   image: string
   labels: Record<string, string>
   state: string
+  mounts: ContainerMount[]
+  /** Raw `KEY=VALUE` env entries from the container config. */
+  env: string[]
+  /** Configured user (`Config.User` from docker inspect). */
+  user: string
 }
 
 export interface VolumeInfo {

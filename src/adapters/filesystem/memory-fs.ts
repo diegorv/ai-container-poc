@@ -2,13 +2,26 @@ import { dirname, posix } from 'node:path'
 import type { FileStat, FileSystem } from '@/ports/filesystem'
 
 type Entry =
-  | { type: 'file'; content: string; mode: number; uid: number; gid: number }
-  | { type: 'dir'; mode: number; uid: number; gid: number }
-  | { type: 'symlink'; target: string; mode: number; uid: number; gid: number }
+  | { type: 'file'; content: string; mode: number; uid: number; gid: number; mtimeMs: number }
+  | { type: 'dir'; mode: number; uid: number; gid: number; mtimeMs: number }
+  | {
+      type: 'symlink'
+      target: string
+      mode: number
+      uid: number
+      gid: number
+      mtimeMs: number
+    }
 
 export interface MemoryFsOptions {
   uid?: number
   gid?: number
+  /**
+   * Returns the timestamp (ms) used for newly created/written entries.
+   * Defaults to the wall clock; tests use this to control "newer than"
+   * comparisons deterministically.
+   */
+  now?: () => number
 }
 
 export interface MemoryFs extends FileSystem {
@@ -60,15 +73,16 @@ export function createMemoryFs(
 ): MemoryFs {
   const uid = options.uid ?? 1000
   const gid = options.gid ?? 1000
+  const now = options.now ?? Date.now
   const entries = new Map<string, Entry>()
-  entries.set('/', { type: 'dir', mode: DEFAULT_DIR_MODE, uid, gid })
+  entries.set('/', { type: 'dir', mode: DEFAULT_DIR_MODE, uid, gid, mtimeMs: now() })
 
   function ensureParents(path: string): void {
     const parent = dirname(path)
     if (parent === path) return
     if (!entries.has(parent)) {
       ensureParents(parent)
-      entries.set(parent, { type: 'dir', mode: DEFAULT_DIR_MODE, uid, gid })
+      entries.set(parent, { type: 'dir', mode: DEFAULT_DIR_MODE, uid, gid, mtimeMs: now() })
     }
   }
 
@@ -90,7 +104,7 @@ export function createMemoryFs(
   for (const [rawPath, content] of Object.entries(initial)) {
     const path = normalize(rawPath)
     ensureParents(path)
-    entries.set(path, { type: 'file', content, mode: DEFAULT_FILE_MODE, uid, gid })
+    entries.set(path, { type: 'file', content, mode: DEFAULT_FILE_MODE, uid, gid, mtimeMs: now() })
   }
 
   const fs: MemoryFs = {
@@ -110,7 +124,14 @@ export function createMemoryFs(
       const parentEntry = entries.get(parent)
       if (!parentEntry) throw enoent(parent)
       if (parentEntry.type !== 'dir') throw enotdir(parent)
-      entries.set(path, { type: 'file', content, mode: DEFAULT_FILE_MODE, uid, gid })
+      entries.set(path, {
+        type: 'file',
+        content,
+        mode: DEFAULT_FILE_MODE,
+        uid,
+        gid,
+        mtimeMs: now(),
+      })
     },
 
     async exists(rawPath) {
@@ -130,7 +151,7 @@ export function createMemoryFs(
         const parent = dirname(path)
         if (!entries.has(parent)) throw enoent(parent)
       }
-      entries.set(path, { type: 'dir', mode: DEFAULT_DIR_MODE, uid, gid })
+      entries.set(path, { type: 'dir', mode: DEFAULT_DIR_MODE, uid, gid, mtimeMs: now() })
     },
 
     async readdir(rawPath) {
@@ -205,6 +226,7 @@ export function createMemoryFs(
         gid: entry.gid,
         mode: entry.mode,
         size,
+        mtimeMs: entry.mtimeMs,
       }
       return stat
     },
@@ -222,6 +244,7 @@ export function createMemoryFs(
         gid: entry.gid,
         mode: entry.mode,
         size,
+        mtimeMs: entry.mtimeMs,
       }
       return stat
     },
@@ -236,7 +259,14 @@ export function createMemoryFs(
       const path = normalize(rawPath)
       if (entries.has(path)) throw eexist(path)
       ensureParents(path)
-      entries.set(path, { type: 'symlink', target, mode: DEFAULT_SYMLINK_MODE, uid, gid })
+      entries.set(path, {
+        type: 'symlink',
+        target,
+        mode: DEFAULT_SYMLINK_MODE,
+        uid,
+        gid,
+        mtimeMs: now(),
+      })
     },
 
     async readlink(rawPath) {
