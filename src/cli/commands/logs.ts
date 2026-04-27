@@ -1,4 +1,5 @@
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { CliError } from '@/lib/cli-error'
 import type { CommandDeps } from '../deps'
 
 export interface LogsArgs {
@@ -19,7 +20,9 @@ export async function logs(args: LogsArgs, deps: CommandDeps): Promise<number> {
   const containers = await docker.listContainers({ label: project.containerLabel, all: true })
   const container = containers[0]
   if (!container) {
-    throw new Error(`No devcontainer found for ${args.cwd}`)
+    throw new CliError(`No devcontainer found for ${args.cwd}.`, {
+      suggestion: 'Start one with `mydevc up` (or `mydevc dot`) first.',
+    })
   }
   const dockerArgs = ['logs']
   if (args.follow) dockerArgs.push('--follow')

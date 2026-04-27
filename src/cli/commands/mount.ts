@@ -1,5 +1,6 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { addBindMount } from '@/core/devcontainer/manipulate-mounts'
+import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -20,11 +21,13 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
   const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
 
   if (!(await fs.exists(dcJson))) {
-    throw new Error(`No devcontainer.json at ${dcJson}. Run 'mydevc template' first.`)
+    throw new CliError(`No devcontainer.json at ${dcJson}.`, {
+      suggestion: 'Run `mydevc template` to install one.',
+    })
   }
 
   if (!(await fs.exists(args.hostPath))) {
-    throw new Error(`Host path does not exist: ${args.hostPath}`)
+    throw new CliError(`Host path does not exist: ${args.hostPath}`)
   }
   const resolvedHost = await fs.realpath(args.hostPath)
 

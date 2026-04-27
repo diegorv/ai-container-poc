@@ -7,6 +7,7 @@ import { nodeFs } from '@/adapters/filesystem/node-fs'
 import { createPrettyLogger } from '@/adapters/logger/pretty-logger'
 import { ttyPrompt } from '@/adapters/prompt/tty-prompt'
 import { execaShell } from '@/adapters/shell/execa-shell'
+import { CliError } from '@/lib/cli-error'
 import { EnvSchema } from '@/schemas/env'
 import { clean } from './commands/clean'
 import { cp } from './commands/cp'
@@ -132,5 +133,8 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err)
   process.stderr.write(`mydevc: ${message}\n`)
+  if (err instanceof CliError && err.suggestion) {
+    process.stderr.write(`Try: ${err.suggestion}\n`)
+  }
   process.exit(1)
 })

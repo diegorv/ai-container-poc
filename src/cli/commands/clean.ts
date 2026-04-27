@@ -1,5 +1,6 @@
 import { UID_IMAGE_SUFFIX } from '@/config'
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { CliError } from '@/lib/cli-error'
 import type { CommandDeps } from '../deps'
 
 export interface CleanArgs {
@@ -61,9 +62,9 @@ export async function clean(args: CleanArgs, deps: CommandDeps): Promise<void> {
   const wantCache = args.cache === true
 
   if (!wantContainer && !wantVolumes && !wantImages && !wantCache) {
-    throw new Error(
-      'clean: pick at least one of --container, --volumes, --images, --cache (or use `mydevc destroy` for everything).',
-    )
+    throw new CliError('clean: pick at least one of --container, --volumes, --images, --cache.', {
+      suggestion: 'Use `mydevc destroy` if you want to remove everything at once.',
+    })
   }
 
   const project = computeProjectId(args.cwd)
