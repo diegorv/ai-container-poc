@@ -13,12 +13,16 @@ import { destroy } from './commands/destroy'
 import { dot } from './commands/dot'
 import { down } from './commands/down'
 import { exec } from './commands/exec'
+import { HELP_TEXT } from './commands/help'
 import { mount } from './commands/mount'
 import { rebuild } from './commands/rebuild'
+import { selfInstall } from './commands/self-install'
 import { shell } from './commands/shell'
 import { sync } from './commands/sync'
 import { template } from './commands/template'
 import { up } from './commands/up'
+import { update } from './commands/update'
+import { upgrade } from './commands/upgrade'
 import type { CommandDeps } from './deps'
 import { type ParsedCommand, parseArgs } from './parser'
 
@@ -45,25 +49,14 @@ function buildDeps(): CommandDeps {
   }
 }
 
-const HELP_TEXT = `Usage: mydevc <command> [options]
+function currentBinaryPath(): string {
+  return fileURLToPath(import.meta.url)
+}
 
-Commands:
-    .                      Install template + start container in current dir
-    template [dir]         Copy devcontainer template into directory
-    up [dir]               Start the devcontainer
-    rebuild [dir]          Rebuild the devcontainer (preserves volumes)
-    down [dir]             Stop the devcontainer
-    shell                  Open zsh in the running container
-    exec <cmd> [args...]   Run a command in the running container
-    upgrade                Upgrade Claude Code inside the container
-    mount <host> <ct>      Add a host→container bind mount
-    sync [filter]          Sync Claude sessions from devcontainers to host
-    cp <ct> <host>         Copy a path from the container to the host
-    destroy [-f]           Remove container, volumes and images
-    self-install           Symlink mydevc into ~/.local/bin
-    update                 Pull the latest mydevc from git
-    help                   Show this help message
-`
+function repoRootDir(): string {
+  // dist/cli/index.js or src/cli/index.ts → repo root is two parents up.
+  return resolve(dirname(currentBinaryPath()), '..', '..')
+}
 
 async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> {
   switch (cmd.name) {
@@ -102,9 +95,13 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
       await destroy(cmd, deps)
       return 0
     case 'upgrade':
+      return upgrade(cmd, deps)
     case 'self-install':
+      await selfInstall({ sourceBin: currentBinaryPath() }, deps)
+      return 0
     case 'update':
-      throw new Error(`Command "${cmd.name}" not yet implemented (lands in a later phase).`)
+      await update({ sourceDir: repoRootDir() }, deps)
+      return 0
   }
 }
 
