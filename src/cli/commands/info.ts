@@ -50,8 +50,8 @@ async function collectSummary(args: InfoArgs, deps: CommandDeps): Promise<InfoSu
     try {
       const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
       summary.customMounts = extractCustomMounts(parsed.mounts)
-    } catch {
-      // Leave customMounts empty if parsing fails.
+    } catch (err) {
+      deps.logger.debug(`info: could not parse ${dcJson}: ${(err as Error).message}`)
     }
   }
 

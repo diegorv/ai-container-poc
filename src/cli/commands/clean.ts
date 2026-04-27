@@ -113,15 +113,15 @@ export async function clean(args: CleanArgs, deps: CommandDeps): Promise<void> {
       logger.info('Stopping container…')
       try {
         await docker.stopContainer(found.containerId)
-      } catch {
-        // best-effort
+      } catch (err) {
+        logger.warn(`could not stop container: ${(err as Error).message}`)
       }
     }
     logger.info('Removing container…')
     try {
       await docker.removeContainer(found.containerId, { force: true })
-    } catch {
-      // best-effort
+    } catch (err) {
+      logger.warn(`could not remove container: ${(err as Error).message}`)
     }
   }
 
@@ -130,8 +130,8 @@ export async function clean(args: CleanArgs, deps: CommandDeps): Promise<void> {
       logger.info(`Removing volume: ${v}`)
       try {
         await docker.removeVolume(v, { force: true })
-      } catch {
-        // best-effort
+      } catch (err) {
+        logger.warn(`could not remove volume ${v}: ${(err as Error).message}`)
       }
     }
   }
@@ -141,16 +141,16 @@ export async function clean(args: CleanArgs, deps: CommandDeps): Promise<void> {
       logger.info(`Removing image: ${found.baseImage}`)
       try {
         await docker.removeImage(found.baseImage, { force: true })
-      } catch {
-        // best-effort
+      } catch (err) {
+        logger.warn(`could not remove image ${found.baseImage}: ${(err as Error).message}`)
       }
     }
     if (found.uidImage && (await docker.imageExists(found.uidImage))) {
       logger.info(`Removing image: ${found.uidImage}`)
       try {
         await docker.removeImage(found.uidImage, { force: true })
-      } catch {
-        // best-effort
+      } catch (err) {
+        logger.warn(`could not remove image ${found.uidImage}: ${(err as Error).message}`)
       }
     }
   }
