@@ -130,4 +130,32 @@ describe('sync command', () => {
       /no matching devcontainers/,
     )
   })
+
+  it('skips containers whose project label is not a safe filename', async () => {
+    const deps = buildSyncDeps({ cpResponses: {} })
+    deps.docker.addContainer({
+      id: 'cid-evil',
+      labels: { 'devcontainer.local_folder': '/Users/alice/..' },
+      state: 'running',
+      env: [],
+      user: 'vscode',
+    })
+    deps.docker.addContainer({
+      id: 'cid-evil2',
+      labels: { 'devcontainer.local_folder': '/Users/alice/code/with spaces' },
+      state: 'running',
+      env: [],
+      user: 'vscode',
+    })
+    // Filter that matches neither the legit `crypto` nor the evil ones —
+    // the warnings are emitted before the filter check, so they fire
+    // regardless. We then expect the throw because nothing matched.
+    await expect(sync({ trusted: true, filter: 'banana' }, deps)).rejects.toThrow(
+      /no matching devcontainers/,
+    )
+    const skipped = deps.logger.messages.filter(
+      (e) => e.level === 'warn' && /not a safe filename/.test(e.message),
+    )
+    expect(skipped).toHaveLength(2)
+  })
 })

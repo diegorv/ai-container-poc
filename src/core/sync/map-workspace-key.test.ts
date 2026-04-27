@@ -58,4 +58,15 @@ describe('resolveClaudeProjectsDir', () => {
       resolveClaudeProjectsDir({ env: ['CLAUDE_CONFIG_DIR=/root/.claude'], user: 'root' }),
     ).toBe('/root/.claude/projects')
   })
+
+  it('rejects user with .. and falls back to /root', () => {
+    expect(resolveClaudeProjectsDir({ env: [], user: '..' })).toBe('/root/.claude/projects')
+    expect(resolveClaudeProjectsDir({ env: [], user: 'foo/../etc' })).toBe('/root/.claude/projects')
+  })
+
+  it('rejects user with path separators or unusual chars', () => {
+    expect(resolveClaudeProjectsDir({ env: [], user: 'foo/bar' })).toBe('/root/.claude/projects')
+    expect(resolveClaudeProjectsDir({ env: [], user: 'foo bar' })).toBe('/root/.claude/projects')
+    expect(resolveClaudeProjectsDir({ env: [], user: 'foo\0bar' })).toBe('/root/.claude/projects')
+  })
 })

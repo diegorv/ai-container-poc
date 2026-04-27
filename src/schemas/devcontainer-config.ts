@@ -1,12 +1,28 @@
+import { parseStringMount } from '@/core/devcontainer/manipulate-mounts'
 import { z } from 'zod'
 
 /**
  * A mount entry in `devcontainer.json`. Devcontainer accepts both string
  * (`type=bind,source=...,target=...`) and object form. We model both and
  * preserve unknown keys for round-tripping.
+ *
+ * The string variant is parsed strictly: a malicious workspace-side
+ * `devcontainer.json` (which an attacker-controlled container can write
+ * through the workspace bind mount) must not be able to smuggle a second
+ * `target=` or a NUL byte past us and have downstream code read the
+ * "wrong" target. `parseStringMount` rejects ambiguity at this boundary.
  */
 export const MountSchema = z.union([
-  z.string(),
+  z.string().superRefine((raw, ctx) => {
+    try {
+      parseStringMount(raw)
+    } catch (err) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }),
   z
     .object({
       type: z.enum(['bind', 'volume']),

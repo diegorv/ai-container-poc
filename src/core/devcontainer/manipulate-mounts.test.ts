@@ -3,6 +3,7 @@ import {
   addBindMount,
   extractCustomMounts,
   mergeCustomMounts,
+  parseStringMount,
   targetOfMount,
 } from './manipulate-mounts'
 
@@ -15,8 +16,63 @@ describe('targetOfMount', () => {
     expect(targetOfMount({ type: 'bind', source: '/h', target: '/c' })).toBe('/c')
   })
 
-  it('is undefined when no target= present', () => {
+  it('is undefined when the mount is malformed (e.g. no target=)', () => {
     expect(targetOfMount('source=/h,type=bind')).toBeUndefined()
+  })
+})
+
+describe('parseStringMount', () => {
+  it('parses a basic bind mount', () => {
+    const p = parseStringMount('source=/h,target=/c,type=bind')
+    expect(p.type).toBe('bind')
+    expect(p.source).toBe('/h')
+    expect(p.target).toBe('/c')
+    expect(p.readonly).toBe(false)
+  })
+
+  it('detects readonly flag in either form', () => {
+    expect(parseStringMount('target=/c,type=volume,readonly').readonly).toBe(true)
+    expect(parseStringMount('target=/c,type=volume,ro').readonly).toBe(true)
+  })
+
+  it('rejects NUL bytes', () => {
+    expect(() => parseStringMount('target=/c\0evil,type=bind,source=/h')).toThrow(/NUL/)
+  })
+
+  it('rejects duplicate target= (the cross-boundary injection vector)', () => {
+    expect(() => parseStringMount('source=/h,target=/safe,target=/etc,type=bind')).toThrow(
+      /duplicate key 'target'/,
+    )
+  })
+
+  it('rejects duplicate source= and type=', () => {
+    expect(() => parseStringMount('source=/a,source=/b,target=/c,type=bind')).toThrow(/duplicate/)
+    expect(() => parseStringMount('target=/c,type=bind,type=volume')).toThrow(/duplicate/)
+  })
+
+  it('rejects empty / trailing fields', () => {
+    expect(() => parseStringMount('source=/h,target=/c,type=bind,')).toThrow(/empty field/)
+    expect(() => parseStringMount(',source=/h,target=/c,type=bind')).toThrow(/empty field/)
+  })
+
+  it('rejects unknown bare flags (must have a value)', () => {
+    expect(() => parseStringMount('source=/h,target=/c,type=bind,evil')).toThrow(/missing a value/)
+  })
+
+  it('rejects missing or invalid type=', () => {
+    expect(() => parseStringMount('source=/h,target=/c')).toThrow(/invalid or missing type/)
+    expect(() => parseStringMount('source=/h,target=/c,type=overlay')).toThrow(
+      /invalid or missing type/,
+    )
+  })
+
+  it('rejects missing target=', () => {
+    expect(() => parseStringMount('source=/h,type=bind')).toThrow(/missing target/)
+  })
+
+  it('accepts destination= and dst= as target aliases', () => {
+    expect(parseStringMount('source=/h,destination=/c,type=bind').target).toBe('/c')
+    expect(parseStringMount('source=/h,dst=/c,type=bind').target).toBe('/c')
   })
 })
 
@@ -110,7 +166,7 @@ describe('addBindMount', () => {
         hostPath: '/tmp/x,readonly,target=/etc',
         containerPath: '/data',
       }),
-    ).toThrow(/reserved character/)
+    ).toThrow(/CSV-reserved/)
   })
 
   it('throws when containerPath contains a comma or =', () => {
@@ -120,13 +176,13 @@ describe('addBindMount', () => {
         hostPath: '/h',
         containerPath: '/c,readonly',
       }),
-    ).toThrow(/reserved character/)
+    ).toThrow(/CSV-reserved/)
     expect(() =>
       addBindMount({
         mounts: undefined,
         hostPath: '/h',
         containerPath: '/c=foo',
       }),
-    ).toThrow(/reserved character/)
+    ).toThrow(/CSV-reserved/)
   })
 })

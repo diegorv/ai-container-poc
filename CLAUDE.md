@@ -38,6 +38,17 @@ tests/e2e/          — built-binary smoke tests
 - Use `Result<T, E>` from `src/lib/result.ts` for expected failures; throw only for programming errors.
 - Tests use the in-memory fakes in `src/adapters/*` — never `vi.mock`.
 
+## Untrusted-input rules (security boundary)
+
+The container is untrusted. Anything that crosses host ↔ container — env vars, container labels, `Config.User`, files in the workspace bind mount (including `.devcontainer/devcontainer.json`), output of `docker inspect`, filenames extracted via `docker cp` — must pass through `src/core/security/untrusted-input.ts` before being used as a path component, filename, command argument, or mount field. Don't roll a new regex inline; extend the central module.
+
+When you add a new untrusted source:
+1. Pick the matching helper (`isSafeFilename`, `isPosixUserName`, `isHomeOrRootAbsolutePath`, `assertNoNul`, `assertNoMountReservedChars`). If none fits, add a new one **in `untrusted-input.ts`** with a doc comment explaining the threat.
+2. Decide your failure mode: `is*` returning false → skip with a `logger.warn`; `assert*` throwing → abort the whole operation. Use the latter only when continuing would be unsafe.
+3. Add a unit test in `untrusted-input.test.ts` covering the rejection cases.
+
+Coverage today is *deliberately* not "validate every string in every schema". Zod schemas like `DevcontainerConfigSchema` accept open-ended values for fields that are passed inertly to Docker (e.g. `image`, `name`); only fields the host *interprets* (paths, mount sources, project keys) need the helpers.
+
 ## Commands
 
 ```bash

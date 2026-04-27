@@ -1,5 +1,6 @@
 import { dirname } from 'node:path'
 import { CONTAINER_LABEL_KEY } from '@/config'
+import { isSafeFilename } from '@/core/security/untrusted-input'
 import { mapWorkspaceKey, resolveClaudeProjectsDir } from '@/core/sync/map-workspace-key'
 import { safeDestPath } from '@/core/sync/safe-dest-path'
 import { walkFiles } from '@/lib/walk-fs'
@@ -26,9 +27,19 @@ function matchesFilter(name: string, filter: string | undefined): boolean {
   return name.toLowerCase().includes(filter.toLowerCase())
 }
 
-function projectNameOf(info: ContainerInfo): string {
+/**
+ * Project names are stitched into `-devcontainer-<name>` keys that
+ * become directories under `~/.claude/projects` on the host. The label
+ * the name comes from is set by the devcontainer CLI (host-trusted) but
+ * a malicious devcontainer.json could re-issue it via `runArgs --label`,
+ * so we delegate to `isSafeFilename` (POSIX-friendly chars, length cap,
+ * no `.`/`..`/NUL). `safeDestPath` is the second layer of defence at
+ * the actual filesystem write.
+ */
+function projectNameOf(info: ContainerInfo): string | undefined {
   const folder = info.labels[CONTAINER_LABEL_KEY] ?? ''
-  return folder.split('/').pop() ?? folder
+  const candidate = folder.split('/').pop() ?? folder
+  return isSafeFilename(candidate) ? candidate : undefined
 }
 
 async function copyIfNewer(fs: FileSystem, source: string, dest: string): Promise<boolean> {
@@ -147,6 +158,12 @@ export async function sync(args: SyncArgs, deps: CommandDeps): Promise<void> {
   const matches: MatchedContainer[] = []
   for (const info of containers) {
     const name = projectNameOf(info)
+    if (name === undefined) {
+      logger.warn(
+        `Skipping container ${info.id.slice(0, 12)}: project label '${info.labels[CONTAINER_LABEL_KEY] ?? ''}' is not a safe filename.`,
+      )
+      continue
+    }
     if (!matchesFilter(name, args.filter)) continue
     matches.push({ info, projectName: name, folder: info.labels[CONTAINER_LABEL_KEY] ?? '' })
   }
@@ -155,7 +172,8 @@ export async function sync(args: SyncArgs, deps: CommandDeps): Promise<void> {
     logger.error(`No devcontainers matching '${args.filter ?? ''}'.`)
     logger.info('Available:')
     for (const info of containers) {
-      logger.info(`  - ${projectNameOf(info)} (${info.state})`)
+      const name = projectNameOf(info) ?? '<invalid>'
+      logger.info(`  - ${name} (${info.state})`)
     }
     throw new Error('no matching devcontainers')
   }

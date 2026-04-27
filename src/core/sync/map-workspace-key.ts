@@ -1,3 +1,5 @@
+import { isHomeOrRootAbsolutePath, isPosixUserName } from '@/core/security/untrusted-input'
+
 /**
  * Maps a Claude Code project key from container-side to host-side.
  *
@@ -15,22 +17,13 @@ export function mapWorkspaceKey(containerKey: string, projectName: string): stri
 }
 
 /**
- * Allowlist of container paths the host will trust for the
- * `${claudeDir}/projects` value when reading from a container's env.
- * The container is treated as untrusted; without this check, a
- * malicious `CLAUDE_CONFIG_DIR=/etc` would have host-side `docker cp`
- * extract /etc into a tmp dir and feed its `.jsonl` files into
- * `~/.claude/projects/`.
- */
-const ALLOWED_CLAUDE_DIR = /^\/(home\/[A-Za-z0-9_.-]+|root)(\/[A-Za-z0-9_.-]+)*$/
-
-/**
  * Resolves the absolute path of `~/.claude/projects` inside the
  * container, given its env vars and remote user. Mirrors
- * `sync_get_claude_projects_dir` in install.sh, plus a security check:
- * the env value must be an absolute path under `/home/<user>/` or
- * `/root/`, with no `..` segments. Anything else falls back to the
- * derived-from-user default.
+ * `sync_get_claude_projects_dir` in install.sh, plus security checks
+ * delegated to `core/security/untrusted-input`:
+ * - the env value must be a `/home/<user>/...` or `/root/...` path;
+ * - `args.user` must look like a POSIX username.
+ * Anything else falls back to `/root/.claude/projects`.
  */
 export function resolveClaudeProjectsDir(args: {
   env?: readonly string[]
@@ -40,16 +33,12 @@ export function resolveClaudeProjectsDir(args: {
     .map((line) => line.match(/^CLAUDE_CONFIG_DIR=(.*)$/))
     .find((m): m is RegExpMatchArray => m !== null)?.[1]
 
-  if (
-    claudeConfigDir &&
-    claudeConfigDir.length > 0 &&
-    !claudeConfigDir.includes('..') &&
-    ALLOWED_CLAUDE_DIR.test(claudeConfigDir)
-  ) {
+  if (claudeConfigDir && isHomeOrRootAbsolutePath(claudeConfigDir)) {
     return `${claudeConfigDir}/projects`
   }
 
   const user = args.user ?? ''
   if (user === '' || user === 'root') return '/root/.claude/projects'
+  if (!isPosixUserName(user)) return '/root/.claude/projects'
   return `/home/${user}/.claude/projects`
 }
