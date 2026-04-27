@@ -347,7 +347,7 @@ mydevc sync crypto        # filter by project name
 mydevc sync --trusted     # skip the trust prompt
 ```
 
-## File sharing
+## File sharing and persistence
 
 ```bash
 mydevc mount ~/drop /drop                # read-write
@@ -357,6 +357,79 @@ mydevc mount ~/secrets /secrets --readonly
 The mount is added to `devcontainer.json` and the container is recreated. Custom mounts are preserved across `mydevc template` updates.
 
 > Mount narrowly. Every mounted path is writable from the container unless `--readonly`, which undermines the isolation.
+
+### What's already persistent (don't re-mount it)
+
+The bundled `templates/devcontainer.json` already wires up everything most users need. Don't add manual mounts for any of this:
+
+| Path inside container | Type | What survives | Notes |
+|---|---|---|---|
+| `/commandhistory` | named volume | bash + zsh history | Survives `down`/`up`/`rebuild`. Wiped by `destroy` or `clean --volumes`. |
+| `/home/vscode/.claude` | named volume | Claude config, sessions, plugins | Same lifecycle. |
+| `/home/vscode/.config/gh` | named volume | GitHub CLI auth (`gh auth login`) | Same lifecycle. |
+| `/home/vscode/.gitconfig` | bind, **read-only** | Host git identity | Read straight from your host. SSH keys stay on the host (forwarded as a socket). |
+| `/workspace/.devcontainer` | bind, **read-only** | The devcontainer config | Read-only on purpose so a compromised process can't add `SYS_ADMIN` mid-flight. |
+| `/workspace/.git/{config,hooks}` | bind, **read-only** | Project git identity + hooks | Stops malicious post-commit hooks from being injected. |
+| `/workspace` | bind | Your code | Always read-write. **Anything in this tree is visible to Claude.** |
+
+### When `mydevc mount` makes sense
+
+Reach for it when you need to share a host path that mydevc doesn't already know about. Two productive flavors:
+
+**Bring data in (often `--readonly`).** Reference docs, datasets, pre-trained models, license files, fixtures — anything Claude should be able to read but never modify.
+
+```bash
+mydevc mount ~/datasets/imagenet /data/imagenet --readonly
+mydevc mount ~/notes /notes --readonly
+```
+
+**Take artifacts out.** Build outputs, generated reports, database dumps you want to keep after the container dies.
+
+```bash
+mkdir -p ~/artifacts/myproj
+mydevc mount ~/artifacts/myproj /workspace/dist
+```
+
+**Speed up rebuilds with shared package caches.** Each `mydevc rebuild` rebuilds the image, which means losing every cached download. Mount a host folder for the cache and you only download once across all rebuilds (and across projects, if you point them at the same host folder):
+
+```bash
+# pick the ones your project actually uses
+mydevc mount ~/.cache/mydevc/npm   /home/vscode/.npm
+mydevc mount ~/.cache/mydevc/pnpm  /home/vscode/.local/share/pnpm
+mydevc mount ~/.cache/mydevc/uv    /home/vscode/.cache/uv
+mydevc mount ~/.cache/mydevc/pip   /home/vscode/.cache/pip
+mydevc mount ~/.cache/mydevc/cargo /home/vscode/.cargo
+mydevc mount ~/.cache/mydevc/go    /home/vscode/.cache/go-build
+```
+
+> ⚠️ Package caches are powerful for trusted setups but **dangerous for untrusted code** — a malicious dep could poison the cache and hit your next project. Skip them in Scenario 2.
+
+### What you almost never want to mount
+
+| ❌ Don't mount | Why |
+|---|---|
+| `~/` (your entire home) | Everything is visible — including the items below. |
+| `~/.ssh/` | Private keys. Use the SSH agent socket (forwarded automatically) instead. |
+| `~/.aws/`, `~/.gcp/`, `~/.azure/` | Cloud credentials. Inject scoped credentials via `--remoteEnv` instead. |
+| `~/.config/` (whole dir) | App configs, often with embedded tokens. Mount specific subdirs only. |
+| `~/.docker/` or `/var/run/docker.sock` | A docker socket inside the container = container escape. |
+| `~/.kube/` | Kubernetes credentials usually carry cluster-admin tokens. |
+| Any other repo's `.env` / `.envrc` | Repos under `~/dev` already share a workspace; for one-off access copy the file in instead of mounting the whole repo. |
+| The host `/etc`, `/usr`, `/var` | Container can read system config and (without `--readonly`) overwrite it. |
+
+### Use a named volume when you want container-only persistence
+
+`mydevc mount` only adds bind mounts. If you want persistent storage that **lives only inside the container** (like `/commandhistory` does — survives rebuilds, wiped by `destroy`, never touches the host) edit `.devcontainer/devcontainer.json` directly:
+
+```json
+"mounts": [
+  "source=devc-${localWorkspaceFolderBasename}-pgdata,target=/var/lib/postgresql/data,type=volume"
+]
+```
+
+Then `mydevc rebuild`. The volume now persists between rebuilds without polluting your host.
+
+`mydevc info` lists every named volume attached to the current container, and `mydevc clean --volumes -f` is the granular way to drop them.
 
 ## Security model
 
