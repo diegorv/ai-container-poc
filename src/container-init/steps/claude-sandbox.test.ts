@@ -2,6 +2,7 @@ import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { p } from '@/test-utils/path'
+import { execa } from 'execa'
 import { describe, expect, it } from 'vitest'
 import { claudeSandboxStep } from './claude-sandbox'
 import type { StepContext } from './step'
@@ -37,8 +38,37 @@ describe('claude-sandbox step', () => {
     expect(content).toContain('exec bwrap')
     expect(content).toContain('--ro-bind / /')
     expect(content).toContain('--bind "$CWD" "$CWD"')
-    expect(content).toContain('--tmpfs "$HOME/.claude"')
+    expect(content).toContain('--ro-bind-try /dev/null "$HOME/.claude/credentials.json"')
+    expect(content).toContain('--ro-bind-try /dev/null "$HOME/.claude/.credentials.json"')
+    expect(content).toContain('--ro-bind-try /dev/null "$HOME/.config/gh/hosts.yml"')
+    expect(content).not.toContain('--tmpfs "$HOME/.claude"')
     expect(content).toContain('CLAUDE_JAIL_DISABLE')
+  })
+
+  it('preserves ~/.claude/{settings.json,projects,plugins} (no broad tmpfs)', async () => {
+    const c = await makeCtx()
+    await claudeSandboxStep.run(c)
+    const content = await c.fs.readFile(p('/home/vscode/.local/bin/claude-jail'))
+    // Anything that would mask the whole ~/.claude dir would break
+    // bypassPermissions / mydevc sync / plugins inside the jail.
+    expect(content).not.toMatch(/--tmpfs\s+"\$HOME\/\.claude"/)
+    expect(content).not.toMatch(/--tmpfs\s+"\$HOME\/\.config\/gh"/)
+  })
+
+  it('falls back to `command -v claude` with a recursion guard', async () => {
+    const c = await makeCtx()
+    await claudeSandboxStep.run(c)
+    const content = await c.fs.readFile(p('/home/vscode/.local/bin/claude-jail'))
+    expect(content).toContain('command -v claude')
+    expect(content).toContain('"$candidate" != "$0"')
+  })
+
+  it('the generated shim is syntactically valid POSIX sh', async () => {
+    const c = await makeCtx()
+    await claudeSandboxStep.run(c)
+    const content = await c.fs.readFile(p('/home/vscode/.local/bin/claude-jail'))
+    const r = await execa('sh', ['-n'], { input: content, reject: false })
+    expect({ exitCode: r.exitCode, stderr: r.stderr }).toEqual({ exitCode: 0, stderr: '' })
   })
 
   it('marks the shim executable (mode 0o755)', async () => {

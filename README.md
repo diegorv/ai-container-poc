@@ -469,10 +469,14 @@ The Docker container is the primary security boundary; `claude-jail` is a **seco
 |---|---|
 | `$PWD` | read-write (the project) |
 | Rest of `/` | read-only (system tools) |
-| `~/.claude`, `~/.config/gh`, `~/.aws`, `~/.azure`, `~/.gcp`, `~/.ssh` | masked by `tmpfs` (credentials hidden) |
+| `~/.claude/credentials.json`, `~/.claude/.credentials.json` | masked (OAuth token hidden) |
+| `~/.config/gh/hosts.yml` | masked (gh token hidden) |
+| `~/.aws`, `~/.azure`, `~/.gcp`, `~/.ssh` | masked by `tmpfs` |
 | `/proc`, `/dev`, `/tmp` | fresh (no host process visibility) |
 | `pid` / `ipc` / `uts` / `user` namespaces | new |
 | Network | preserved (Claude needs `api.anthropic.com`) |
+
+`~/.claude/settings.json`, `~/.claude/projects/`, and `~/.claude/plugins/` stay visible inside the jail so `bypassPermissions`, `mydevc sync`, and Claude plugins keep working — only the credential files are blanked out.
 
 ```bash
 mydevc shell

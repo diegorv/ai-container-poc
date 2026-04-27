@@ -17,13 +17,16 @@ const SHIM = `#!/bin/sh
 # Defense-in-depth on top of mydevc's outer Docker container. The
 # Docker container already isolates the host; this inner sandbox
 # reduces what \`claude\` can see *inside* the container:
-#   * \$PWD                rw  (the project you are working on)
-#   * everything else /   ro  (system tools, no sneaky writes)
-#   * \$HOME/.claude       masked by tmpfs  (OAuth token hidden)
-#   * \$HOME/.config/gh    masked by tmpfs  (gh auth hidden)
-#   * \$HOME/.aws .azure .gcp .ssh  masked by tmpfs
+#   * \$PWD                                          rw  (the project)
+#   * everything else /                              ro  (system tools)
+#   * \$HOME/.claude/{credentials,.credentials}.json masked  (OAuth token hidden)
+#   * \$HOME/.config/gh/hosts.yml                    masked  (gh token hidden)
+#   * \$HOME/.aws .azure .gcp .ssh                   masked by tmpfs
 #   * fresh /proc, /dev, /tmp; new pid/ipc/uts/user namespaces
 #   * network kept (claude needs api.anthropic.com)
+#
+# settings.json, projects/, plugins/ under ~/.claude stay visible so
+# bypassPermissions, mydevc sync, and plugins keep working in the jail.
 #
 # Env overrides:
 #   CLAUDE_JAIL_DISABLE=1        bypass the jail; exec claude directly
@@ -48,6 +51,13 @@ if [ -z "\$REAL_CLAUDE" ]; then
     if [ -x "\$c" ]; then REAL_CLAUDE="\$c"; break; fi
   done
 fi
+# PATH fallback, with a recursion guard against ourselves.
+if [ -z "\$REAL_CLAUDE" ]; then
+  candidate="\$(command -v claude 2>/dev/null || true)"
+  if [ -n "\$candidate" ] && [ "\$candidate" != "\$0" ]; then
+    REAL_CLAUDE="\$candidate"
+  fi
+fi
 if [ -z "\$REAL_CLAUDE" ] || [ ! -x "\$REAL_CLAUDE" ]; then
   echo "claude-jail: cannot locate the real claude binary" >&2
   echo "claude-jail: set CLAUDE_JAIL_REAL_BIN=/path/to/claude" >&2
@@ -65,8 +75,9 @@ exec bwrap \\
   --dev /dev \\
   --tmpfs /tmp \\
   --bind "\$CWD" "\$CWD" \\
-  --tmpfs "\$HOME/.claude" \\
-  --tmpfs "\$HOME/.config/gh" \\
+  --ro-bind-try /dev/null "\$HOME/.claude/credentials.json" \\
+  --ro-bind-try /dev/null "\$HOME/.claude/.credentials.json" \\
+  --ro-bind-try /dev/null "\$HOME/.config/gh/hosts.yml" \\
   --tmpfs "\$HOME/.aws" \\
   --tmpfs "\$HOME/.azure" \\
   --tmpfs "\$HOME/.gcp" \\
