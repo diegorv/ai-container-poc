@@ -20,7 +20,7 @@ function buildDeps(opts: { exitCode?: number; stderr?: string; stdout?: string }
         ? { exitCode: opts.exitCode ?? 0, stderr: opts.stderr ?? '', stdout: opts.stdout ?? '' }
         : undefined,
   })
-  return { fs, docker, logger: createMemoryLogger() }
+  return { fs, docker, logger: createMemoryLogger(), home: p('/home/alice') }
 }
 
 describe('enforceFirewall', () => {
@@ -28,23 +28,59 @@ describe('enforceFirewall', () => {
     const deps = buildDeps()
     await enforceFirewall(p('/proj'), deps)
     expect(deps.docker.execCalls).toHaveLength(0)
+    expect(deps.docker.cpCalls).toHaveLength(0)
   })
 
-  it('runs setup-firewall.sh when the allowlist is present', async () => {
-    const deps = buildDeps({ stdout: 'Active with 5 destinations.' })
+  it('snapshots the allowlist to host and pushes it into the container', async () => {
+    const deps = buildDeps({ stdout: 'Active with 2 destinations.' })
     await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
-    await deps.fs.writeFile(p('/proj/.devcontainer/firewall-allowlist.txt'), 'github.com\n')
+    await deps.fs.writeFile(
+      p('/proj/.devcontainer/firewall-allowlist.txt'),
+      '# header\ngithub.com\napi.anthropic.com\n',
+    )
 
     await enforceFirewall(p('/proj'), deps)
 
-    expect(deps.docker.execCalls).toEqual([
+    // Host snapshot was written, sanitised, and chmod'd to 0o600.
+    const snapshotKeys = Object.keys(deps.fs.snapshot()).filter((k) =>
+      k.includes('/home/alice/.mydevc/firewalls/'),
+    )
+    expect(snapshotKeys).toHaveLength(1)
+    const snapshotContent = await deps.fs.readFile(p(snapshotKeys[0] ?? ''))
+    expect(snapshotContent).toContain('github.com\n')
+    expect(snapshotContent).toContain('api.anthropic.com\n')
+    expect(snapshotContent).not.toContain('# header')
+
+    // docker cp pushed the snapshot to /etc/mydevc/firewall-allowlist.txt.
+    expect(deps.docker.cpCalls).toEqual([
       {
-        idOrName: 'cid-foo',
-        command: ['sudo', '/opt/mydevc/setup-firewall.sh'],
-        user: undefined,
-        env: undefined,
+        source: snapshotKeys[0],
+        dest: 'cid-foo:/etc/mydevc/firewall-allowlist.txt',
       },
     ])
+
+    // setup-firewall.sh is invoked with the in-container snapshot path,
+    // not the workspace path the container could mutate.
+    const script = deps.docker.execCalls.find((c) => c.command[0] === 'sudo')
+    expect(script?.command).toEqual([
+      'sudo',
+      '/opt/mydevc/setup-firewall.sh',
+      '/etc/mydevc/firewall-allowlist.txt',
+    ])
+  })
+
+  it('refuses to apply the firewall when any line is invalid', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(
+      p('/proj/.devcontainer/firewall-allowlist.txt'),
+      'github.com\nevil.com; iptables -F\n',
+    )
+
+    await expect(enforceFirewall(p('/proj'), deps)).rejects.toThrow(/Refusing to apply firewall/)
+    // Nothing was pushed and nothing was exec'd against the container.
+    expect(deps.docker.cpCalls).toHaveLength(0)
+    expect(deps.docker.execCalls).toHaveLength(0)
   })
 
   it('stops the container and throws when the firewall script fails', async () => {
@@ -65,6 +101,7 @@ describe('enforceFirewall', () => {
       fs,
       docker: createFakeDocker(),
       logger: createMemoryLogger(),
+      home: p('/home/alice'),
     }
     await expect(enforceFirewall(p('/proj'), deps)).rejects.toThrow(/no container was found/)
   })

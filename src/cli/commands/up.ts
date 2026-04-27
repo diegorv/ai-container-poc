@@ -1,7 +1,9 @@
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
+import { findFirewallWindowWarnings } from '@/core/devcontainer/find-firewall-window-warnings'
 import { findUnknownTopLevelFields } from '@/core/devcontainer/find-unknown-fields'
+import { workspaceAllowlistPath } from '@/core/devcontainer/firewall-snapshot'
 import { devcontainerJsonOf } from '@/core/paths'
 import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
@@ -46,6 +48,11 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
         `devcontainer.json contains fields the audit does not understand: ${unknown.join(', ')}. They are passed to the runtime as-is.`,
       )
     }
+    if (await fs.exists(workspaceAllowlistPath(cwd))) {
+      for (const w of findFirewallWindowWarnings(parsed)) {
+        logger.warn(`Pre-firewall lifecycle: ${w.reason}`)
+      }
+    }
   }
 
   await logger.withSpinner(`Starting devcontainer in ${cwd}`, () =>
@@ -55,5 +62,5 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
   // Don't trust the in-container postStartCommand to apply the firewall
   // — a malicious devcontainer.json could override it. Re-run from the
   // host and abort if the script fails.
-  await enforceFirewall(cwd, { docker, fs, logger })
+  await enforceFirewall(cwd, { docker, fs, logger, home: env.HOME })
 }
