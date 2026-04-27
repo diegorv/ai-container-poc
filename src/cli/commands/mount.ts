@@ -1,4 +1,5 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
+import { findDangerousMountPath } from '@/core/devcontainer/dangerous-mount-paths'
 import { addBindMount } from '@/core/devcontainer/manipulate-mounts'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
@@ -9,6 +10,8 @@ export interface MountArgs {
   hostPath: string
   containerPath: string
   readonly?: boolean
+  /** Override the host-path denylist (Docker socket, /etc, ~/.ssh, …). */
+  allowDangerous?: boolean
 }
 
 /**
@@ -17,7 +20,7 @@ export interface MountArgs {
  * then recreates the container so the new mount takes effect.
  */
 export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
-  const { devcontainer, fs, logger } = deps
+  const { devcontainer, env, fs, logger } = deps
   const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
 
   if (!(await fs.exists(dcJson))) {
@@ -30,6 +33,14 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
     throw new CliError(`Host path does not exist: ${args.hostPath}`)
   }
   const resolvedHost = await fs.realpath(args.hostPath)
+
+  const danger = findDangerousMountPath(resolvedHost, env.HOME)
+  if (danger && !args.allowDangerous) {
+    throw new CliError(`Refusing to mount ${danger.path}: ${danger.reason}.`, {
+      suggestion:
+        'If you really need this mount, re-run with `--allow-dangerous`. Read the README "What you almost never want to mount" table first.',
+    })
+  }
 
   const raw = await fs.readFile(dcJson)
   const config = DevcontainerConfigSchema.parse(JSON.parse(raw))
