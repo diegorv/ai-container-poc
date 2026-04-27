@@ -1,14 +1,48 @@
 #!/usr/bin/env node
-// mydevc-init entry point — runs inside the devcontainer.
-// Phase 1 stub. Real step orchestration lands in Phase 8.
-export {}
+import { nodeFs } from '@/adapters/filesystem/node-fs'
+import { createPinoLogger } from '@/adapters/logger/pino-logger'
+import { execaShell } from '@/adapters/shell/execa-shell'
+import { EnvSchema } from '@/schemas/env'
+import { runSteps } from './runner'
+import { claudeBypassStep } from './steps/claude-bypass'
+import { claudeSettingsStep } from './steps/claude-settings'
+import { directoryOwnershipStep } from './steps/directory-ownership'
+import { gitConfigStep } from './steps/git-config'
+import type { StepContext } from './steps/step'
+import { tmuxConfigStep } from './steps/tmux-config'
+
+const STEPS = [
+  claudeBypassStep,
+  claudeSettingsStep,
+  tmuxConfigStep,
+  directoryOwnershipStep,
+  gitConfigStep,
+] as const
 
 async function main(): Promise<void> {
-  // biome-ignore lint/suspicious/noConsoleLog: scaffolding stub
-  console.log('mydevc-init: not yet implemented (Phase 1 scaffold)')
+  const env = EnvSchema.parse(process.env)
+  const logger = createPinoLogger()
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 0
+  const gid = typeof process.getgid === 'function' ? process.getgid() : 0
+
+  const ctx: StepContext = {
+    fs: nodeFs,
+    shell: execaShell,
+    logger,
+    homeDir: env.HOME,
+    uid,
+    gid,
+    env,
+  }
+
+  logger.info('▶ mydevc-init: starting post-create configuration')
+  const result = await runSteps(STEPS, ctx)
+  logger.info(`mydevc-init: ${result.succeeded} succeeded, ${result.failed} failed`)
+  if (result.failed > 0) process.exit(1)
 }
 
 main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : err)
+  const message = err instanceof Error ? err.message : String(err)
+  process.stderr.write(`mydevc-init: ${message}\n`)
   process.exit(1)
 })
