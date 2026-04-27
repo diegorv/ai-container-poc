@@ -48,6 +48,162 @@ mydevc shell     # zsh inside the container
 
 VS Code / Cursor: install the Dev Containers extension, run `mydevc template` (or copy `templates/` manually into `.devcontainer/`), then "Reopen in Container".
 
+## Usage patterns — trusted vs. untrusted code
+
+The right setup depends on how much you trust the code Claude is going to touch. The two scenarios below cover the common extremes; pick the one that matches what you're about to do.
+
+### Scenario 1 — `~/dev` for personal repos (high trust)
+
+Your own repos under a single parent directory. Use the **shared-workspace pattern**: one container, one set of persistent volumes (shell history, Claude config, `gh` auth) reused across every repo. No `--secure` — full network access is fine for your own code.
+
+#### One-time setup
+
+```bash
+cd ~/dev
+mydevc template      # creates ~/dev/.devcontainer/
+# (optional) edit .devcontainer/devcontainer.json to add custom mounts
+mydevc up
+# or both at once:
+mydevc dot
+```
+
+#### Day-to-day
+
+```bash
+mydevc shell                  # /workspace == ~/dev inside the container
+# inside:
+cd my-personal-project
+claude
+exit                          # or Ctrl-D
+
+mydevc info                   # state at a glance
+mydevc logs -f                # tail container logs
+mydevc sync                   # bring Claude sessions back to the host for /insights
+```
+
+Stop / resume between work sessions:
+
+```bash
+mydevc down                   # stop, keep all volumes
+mydevc up                     # start back up, history + Claude + gh intact
+```
+
+Rebuild from a clean image (after editing the Dockerfile, say):
+
+```bash
+mydevc rebuild                # volumes preserved
+```
+
+Add an extra host folder when you need it:
+
+```bash
+mydevc mount ~/notes /notes
+```
+
+**What you gain:** SSH agent works (keys stay on the host), host `~/.gitconfig` is read inside, `gh` and `claude` auth persist across every repo. Zero friction.
+
+**What to remember:** everything under `~/dev` is visible to the container — and therefore to Claude. If a repo holds something sensitive (`.env` with prod credentials), Claude can read it.
+
+### Scenario 2 — open-source repo you don't trust
+
+Use the **per-project pattern** plus `--secure`. The container, its volumes and image are born and die with that one repo. Network is locked down to a small allowlist.
+
+#### Onboarding the repo
+
+```bash
+git clone https://github.com/sketchy/repo /tmp/sandbox/repo
+cd /tmp/sandbox/repo
+
+# 1. If the repo ships its own .devcontainer/, vet it before touching it.
+#    `validate` rejects SYS_ADMIN in runArgs and any malformed config.
+mydevc validate || exit 1
+
+# 2. Install template + bring up with the firewall active.
+mydevc . --secure
+```
+
+The default allowlist (`/.devcontainer/firewall-allowlist.txt`) only permits Anthropic API, GitHub, npm, PyPI and the Claude installer. Everything else is `DROP`.
+
+#### Working inside
+
+```bash
+mydevc shell
+# inside:
+claude
+
+# If the project's deps need another registry (e.g. Rust):
+exit
+echo 'crates.io' >> .devcontainer/firewall-allowlist.txt
+echo 'static.crates.io' >> .devcontainer/firewall-allowlist.txt
+mydevc rebuild        # or: mydevc down && mydevc up — postStartCommand re-applies iptables
+```
+
+#### Visibility
+
+```bash
+mydevc info                                 # state overview
+mydevc info --json | jq '.customMounts'     # confirm nothing sensitive is mounted
+mydevc logs                                 # any suspicious activity from the container
+mydevc ps                                   # if you have several sandboxes running
+```
+
+#### Tear-down
+
+```bash
+exit
+mydevc destroy -f         # container + volumes + image (and -uid variant). No traces left.
+```
+
+If you want to inspect the volumes before deleting them:
+
+```bash
+mydevc clean --container --volumes -f --dry-run    # preview
+mydevc clean --container -f                        # kill only the container, keep volumes for inspection
+```
+
+#### Rules of thumb to keep the isolation intact
+
+| ❌ Avoid | ✅ Do |
+|---|---|
+| `mydevc mount ~/ /mnt/home` | `mydevc mount /tmp/dropbox /drop --readonly` (neutral path, read-only when possible) |
+| Adding `--cap-add=SYS_ADMIN` to `runArgs` | `mydevc validate` rejects it — let it reject |
+| Sharing volumes via the shared-workspace pattern | One fresh container per repo (`mydevc destroy` wipes everything at once) |
+| Editing `.devcontainer/devcontainer.json` from a repo without reading it | Run `mydevc validate` first; review mounts and `runArgs` |
+| Trusting `~/.gitconfig` if it has a malicious `[includeIf "gitdir:..."]` | It's read-only inside the container, but it can still redirect git config — audit yours |
+
+#### Throwaway-sandbox shortcut
+
+```bash
+# In your ~/.zshrc / ~/.bashrc:
+yolo-clone() {
+  local name=$(basename "$1" .git)
+  git clone "$1" "/tmp/sandbox/$name" \
+    && cd "/tmp/sandbox/$name" \
+    && mydevc . --secure \
+    && mydevc shell
+}
+
+# Then:
+yolo-clone https://github.com/sketchy/repo
+# … explore, exit when done
+mydevc destroy -f && cd ~ && rm -rf /tmp/sandbox/repo
+```
+
+### Side-by-side comparison
+
+| | Scenario 1 (`~/dev`) | Scenario 2 (untrusted) |
+|---|---|---|
+| Pattern | Shared workspace | Per-project |
+| Where `.devcontainer/` lives | `~/dev/.devcontainer/` | inside each repo |
+| `--secure` | No (open network) | **Always** |
+| Extra mounts | Freely | Minimal, `--readonly` when possible |
+| State across sessions | Yes (volumes preserve history, Claude, gh) | Yes, until you `destroy` it |
+| Typical shutdown | `mydevc down` (resume later) | `mydevc destroy -f` |
+| `mydevc validate` | Optional (you trust the source) | Before `up` on every new repo |
+| `mydevc sync` | Useful — aggregated `/insights` | Usually skip — sessions die with the sandbox |
+
+The key split: **trust → share persistence; untrusted → disposable container, firewall on, mounts minimal**.
+
 ## Headless auth (optional)
 
 ```bash
