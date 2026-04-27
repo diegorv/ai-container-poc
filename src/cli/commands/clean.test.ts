@@ -89,7 +89,7 @@ describe('clean command', () => {
 
   it('--cache runs docker builder prune', async () => {
     const deps = buildDeps()
-    let captured: string[] = []
+    let captured: readonly string[] = []
     deps.shell.setResponder((cmd, args) => {
       if (cmd === 'docker') {
         captured = args

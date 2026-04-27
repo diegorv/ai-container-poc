@@ -804,13 +804,27 @@ function inspectToInfo(c: DockerInspectContainer): ContainerInfo {
 
 The rule: **brand values that flow into security-sensitive sinks AND originate from a non-operator source.** Everything else stays plain.
 
-### Phase 1 vs Phase 2
+### Phases of enforcement
 
-**Phase 1 (this iteration):** brand at the source (Docker port outputs), validators produce capabilities, consumers refactored. Sinks still accept raw `string`. Enforcement is at the source side: you can’t build a path from `Untrusted` without validating, period.
+**Phase 1 (Untrusted at source).** Branded `Untrusted<S>` on Docker port outputs (`info.user`, `info.labels`, `info.env`). Validators in `core/security/untrusted-input` are the only legitimate path from `Untrusted` to a capability brand (`SafeFilename`, `PosixUserName`, `HomeOrRootAbsolutePath`). Forgetting to validate is a compile error: `Untrusted<>` is opaque and not assignable to `string`.
 
-**Phase 2 (planned):** brand sinks too. `FileSystem.writeFile(path: AbsolutePath, ...)` so even hand-rolled `string` paths fail to compile. Closes the remaining gap where someone could construct a malicious path from string literals (less likely but possible). Phase 2 also introduces `SafeShellArg` for the `Shell` port.
+**Phase 2 (sinks demand capabilities).** The `FileSystem` port now requires `AbsolutePath` for every method that takes a path. Construction goes through `core/security/path`:
+- `literalPath('/opt/mydevc/...')` for hardcoded paths bundled with the binary,
+- `operatorPath(args.cwd)` for CLI argv and `$HOME` (operator-trusted, validates absolute + no NUL, normalises `..`),
+- `joinPath(base, ...segs: SafeFilename[])` for composition — segments must be capability-typed.
 
-Phase 2 is a larger refactor (touches every call site of `fs.*`). It’s deliberately separate so Phase 1 can land and be reviewed in isolation.
+`EnvSchema` brands `HOME` at parse time, so `env.HOME` is `AbsolutePath` everywhere downstream. `CommandDeps.templatesDir` is `AbsolutePath`. `core/paths.ts` exposes `devcontainerJsonOf(cwd)`, `devcontainerDirOf(cwd)`, `hostClaudeProjectsOf(home)` so the common compositions stay readable.
+
+Result: an interpolation like ``` `${env.HOME}/.claude/projects/${info.user}` ``` does not compile. `info.user` is `Untrusted` (not a string), `env.HOME` is `AbsolutePath` (a string subtype, but template-literal output is plain string and won't satisfy a sink that wants `AbsolutePath`).
+
+**Phase 2 — Shell args.** The `Shell` port keeps `args: readonly string[]` (no shell concatenation possible — execa-style `execve()`), with a runtime fence at the adapter that asserts no NUL byte. `Untrusted<>` cannot be passed because it is not a `string`; capability brands (`SafeFilename` etc.) all guarantee no NUL by construction. The fence is defense in depth for raw string literals.
+
+### What remains plain `string`
+
+- `args.cwd` and similar CLI argv values until the command brands them (one `operatorPath(args.cwd)` per command entry).
+- Display strings, log messages, error text, JSON payloads.
+- Docker container ids, image names, label keys — daemon-controlled formats.
+- `info.id`, `info.name`, `info.image`, `info.state` on `ContainerInfo` — daemon-validated.
 
 ### No-escape mechanisms
 

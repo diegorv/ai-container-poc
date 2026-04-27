@@ -6,7 +6,7 @@ const WITH_BIN = { devcontainer: '/usr/local/bin/devcontainer' }
 
 describe('cli-devcontainer via fake-shell', () => {
   it('passes workspace-folder and parses container id from last JSON line', async () => {
-    let capturedArgs: string[] = []
+    let capturedArgs: readonly string[] = []
     const shell = createFakeShell({
       binaries: WITH_BIN,
       responder: (cmd, args) => {
@@ -27,7 +27,7 @@ describe('cli-devcontainer via fake-shell', () => {
   })
 
   it('passes --remove-existing-container when requested', async () => {
-    let capturedArgs: string[] = []
+    let capturedArgs: readonly string[] = []
     const shell = createFakeShell({
       binaries: WITH_BIN,
       responder: (cmd, args) => {

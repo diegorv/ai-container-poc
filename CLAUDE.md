@@ -71,9 +71,11 @@ Rule of thumb: **brand values that flow into security-sensitive sinks AND origin
 - No regex for input validation outside `core/security/`. Extend the module.
 - No direct import of `node:fs` / `node:child_process` outside `adapters/` (already enforced for unrelated reasons).
 
-### Phase 2 (planned)
+### How sinks enforce paths and shell args
 
-`FileSystem` paths and `Shell` args will become capability-typed — sinks themselves will reject raw `string`. This closes the remaining gap where someone constructs a malicious path from string literals. Tracked in `Arch.md`.
+- **`FileSystem.*`** demands `AbsolutePath` everywhere. Build via `literalPath` (hardcoded), `operatorPath` (CLI argv / `$HOME`), or `joinPath(base, ...safeFilename(...))`. The `core/paths.ts` helpers (`devcontainerJsonOf`, `hostClaudeProjectsOf`, …) wrap the common cases.
+- **`Shell.exec` / `execInteractive`** are array-args (no shell concat) plus a NUL-byte fence in the adapter. Capability brands carry the no-NUL invariant; raw string literals at call sites are caught at runtime if they ever contain NUL.
+- **In tests**, use `import { p } from '@/test-utils/path'` for path literals — `p('/proj')` is a sugar alias for `literalPath('/proj')`.
 
 ## Commands
 

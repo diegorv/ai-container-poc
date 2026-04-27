@@ -47,7 +47,7 @@ describe('cli-docker via fake-shell', () => {
   })
 
   it('removeContainer with force passes -f', async () => {
-    const seen: string[][] = []
+    const seen: (readonly string[])[] = []
     const shell = createFakeShell({
       binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {
@@ -76,7 +76,7 @@ describe('cli-docker via fake-shell', () => {
   })
 
   it('exec forwards user and env flags', async () => {
-    let captured: string[] = []
+    let captured: readonly string[] = []
     const shell = createFakeShell({
       binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {
