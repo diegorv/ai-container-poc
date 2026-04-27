@@ -17,6 +17,8 @@ export interface FileSystem {
   copy(src: string, dest: string, options?: { recursive?: boolean }): Promise<void>
   remove(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>
   stat(path: string): Promise<FileStat>
+  /** Like `stat` but does not follow symlinks. */
+  lstat(path: string): Promise<FileStat>
   realpath(path: string): Promise<string>
   symlink(target: string, path: string): Promise<void>
   readlink(path: string): Promise<string>
