@@ -4,6 +4,7 @@ import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { selfInstall } from './self-install'
@@ -23,8 +24,8 @@ function buildDeps(env: Record<string, string> = {}): CommandDeps & {
     shell: createFakeShell(),
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
-    templatesDir: '/tpl',
-    env: { HOME: '/home/alice', ...env },
+    templatesDir: p('/tpl'),
+    env: { HOME: p('/home/alice'), ...env },
   }
 }
 
@@ -47,8 +48,8 @@ describe('upgrade command', () => {
 describe('self-install command', () => {
   it('symlinks the binary into ~/.local/bin and warns when not on PATH', async () => {
     const deps = buildDeps({ PATH: '/usr/bin' })
-    await selfInstall({ sourceBin: '/srv/mydevc/dist/cli/index.js' }, deps)
-    expect(await deps.fs.readlink('/home/alice/.local/bin/mydevc')).toBe(
+    await selfInstall({ sourceBin: p('/srv/mydevc/dist/cli/index.js') }, deps)
+    expect(await deps.fs.readlink(p('/home/alice/.local/bin/mydevc'))).toBe(
       '/srv/mydevc/dist/cli/index.js',
     )
     expect(deps.logger.has('warn', 'is not in your PATH')).toBe(true)
@@ -56,16 +57,16 @@ describe('self-install command', () => {
 
   it('does not warn when the install dir is already in PATH', async () => {
     const deps = buildDeps({ PATH: '/home/alice/.local/bin:/usr/bin' })
-    await selfInstall({ sourceBin: '/srv/mydevc' }, deps)
+    await selfInstall({ sourceBin: p('/srv/mydevc') }, deps)
     expect(deps.logger.has('warn', 'is not in your PATH')).toBe(false)
   })
 
   it('replaces an existing symlink (ln -sf semantics)', async () => {
     const deps = buildDeps({ PATH: '/home/alice/.local/bin' })
-    await deps.fs.mkdir('/home/alice/.local/bin', { recursive: true })
-    await deps.fs.symlink('/old/path', '/home/alice/.local/bin/mydevc')
-    await selfInstall({ sourceBin: '/new/path' }, deps)
-    expect(await deps.fs.readlink('/home/alice/.local/bin/mydevc')).toBe('/new/path')
+    await deps.fs.mkdir(p('/home/alice/.local/bin'), { recursive: true })
+    await deps.fs.symlink(p('/old/path'), p('/home/alice/.local/bin/mydevc'))
+    await selfInstall({ sourceBin: p('/new/path') }, deps)
+    expect(await deps.fs.readlink(p('/home/alice/.local/bin/mydevc'))).toBe('/new/path')
   })
 })
 

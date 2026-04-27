@@ -13,9 +13,11 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises'
+import type { AbsolutePath } from '@/core/security/brand'
+import { operatorPath } from '@/core/security/path'
 import type { FileStat, FileSystem } from '@/ports/filesystem'
 
-async function exists(path: string): Promise<boolean> {
+async function exists(path: AbsolutePath): Promise<boolean> {
   try {
     await stat(path)
     return true
@@ -49,7 +51,9 @@ export const nodeFs: FileSystem = {
     rm(path, { recursive: options?.recursive ?? false, force: options?.force ?? false }),
   stat: async (path) => toFileStat(await stat(path)),
   lstat: async (path) => toFileStat(await lstat(path)),
-  realpath: (path) => realpath(path),
+  // Re-brand the resolved string — the kernel guarantees it's absolute,
+  // and operatorPath validates absolute + no NUL as belt-and-braces.
+  realpath: async (path) => operatorPath(await realpath(path)),
   symlink: (target, path) => symlink(target, path),
   readlink: (path) => readlink(path),
   chmod: (path, mode) => chmod(path, mode),

@@ -1,12 +1,18 @@
+import type { AbsolutePath } from '@/core/security/brand'
+import { joinPath, safeFilename } from '@/core/security/path'
 import type { CommandDeps } from '../deps'
+
+const LOCAL_SEG = safeFilename('.local')
+const BIN_SEG = safeFilename('bin')
+const MYDEVC_SEG = safeFilename('mydevc')
 
 export interface SelfInstallArgs {
   /** Path to the existing `mydevc` binary that will be linked into PATH. */
-  sourceBin: string
+  sourceBin: AbsolutePath
   /** Override `$HOME` (mostly for tests). */
-  homeDir?: string
+  homeDir?: AbsolutePath
   /** Override the install directory; defaults to `<home>/.local/bin`. */
-  installDir?: string
+  installDir?: AbsolutePath
 }
 
 /**
@@ -16,8 +22,8 @@ export interface SelfInstallArgs {
 export async function selfInstall(args: SelfInstallArgs, deps: CommandDeps): Promise<void> {
   const { env, fs, logger } = deps
   const home = args.homeDir ?? env.HOME
-  const installDir = args.installDir ?? `${home}/.local/bin`
-  const installPath = `${installDir}/mydevc`
+  const installDir = args.installDir ?? joinPath(home, LOCAL_SEG, BIN_SEG)
+  const installPath = joinPath(installDir, MYDEVC_SEG)
 
   await fs.mkdir(installDir, { recursive: true })
 

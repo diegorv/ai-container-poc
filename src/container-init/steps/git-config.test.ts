@@ -1,21 +1,22 @@
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import { gitConfigStep } from './git-config'
 import type { StepContext } from './step'
 
 async function makeCtx(): Promise<StepContext> {
   const fs = createMemoryFs()
-  await fs.mkdir('/home/vscode', { recursive: true })
+  await fs.mkdir(p('/home/vscode'), { recursive: true })
   return {
     fs,
     shell: createFakeShell(),
     logger: createMemoryLogger(),
-    homeDir: '/home/vscode',
+    homeDir: p('/home/vscode'),
     uid: 1000,
     gid: 1000,
-    env: { HOME: '/home/vscode' },
+    env: { HOME: p('/home/vscode') },
   }
 }
 
@@ -25,12 +26,12 @@ describe('git-config step', () => {
     const r = await gitConfigStep.run(c)
     expect(r.ok).toBe(true)
 
-    const ignore = await c.fs.readFile('/home/vscode/.gitignore_global')
+    const ignore = await c.fs.readFile(p('/home/vscode/.gitignore_global'))
     expect(ignore).toContain('node_modules/')
     expect(ignore).toContain('.ruff_cache/')
     expect(ignore).toContain('.claude/')
 
-    const gitconfig = await c.fs.readFile('/home/vscode/.gitconfig.local')
+    const gitconfig = await c.fs.readFile(p('/home/vscode/.gitconfig.local'))
     expect(gitconfig).toContain('path = /home/vscode/.gitconfig')
     expect(gitconfig).toContain('excludesfile = /home/vscode/.gitignore_global')
     expect(gitconfig).toContain('pager = delta')

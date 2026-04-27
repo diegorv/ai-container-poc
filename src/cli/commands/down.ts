@@ -1,4 +1,5 @@
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { operatorPath } from '@/core/security/path'
 import type { CommandDeps } from '../deps'
 
 export interface DownArgs {
@@ -12,7 +13,7 @@ export interface DownArgs {
  */
 export async function down(args: DownArgs, deps: CommandDeps): Promise<void> {
   const { docker, logger } = deps
-  const project = computeProjectId(args.cwd)
+  const project = computeProjectId(operatorPath(args.cwd))
 
   logger.info('Stopping devcontainer…')
   const containers = await docker.listContainers({ label: project.containerLabel })

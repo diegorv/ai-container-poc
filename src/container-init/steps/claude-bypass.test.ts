@@ -1,6 +1,7 @@
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import { claudeBypassStep } from './claude-bypass'
 import type { StepContext } from './step'
@@ -20,19 +21,19 @@ async function makeCtx(opts: {
   if (opts.preseed) {
     const slash = opts.preseed.path.lastIndexOf('/')
     if (slash > 0) {
-      await fs.mkdir(opts.preseed.path.slice(0, slash), { recursive: true })
+      await fs.mkdir(p(opts.preseed.path.slice(0, slash)), { recursive: true })
     }
-    await fs.writeFile(opts.preseed.path, opts.preseed.content)
+    await fs.writeFile(p(opts.preseed.path), opts.preseed.content)
   }
   return {
     fs,
     shell,
     logger: createMemoryLogger(),
-    homeDir: '/home/vscode',
+    homeDir: p('/home/vscode'),
     uid: 1000,
     gid: 1000,
     env: {
-      HOME: '/home/vscode',
+      HOME: p('/home/vscode'),
       ...(opts.token ? { CLAUDE_CODE_OAUTH_TOKEN: opts.token } : {}),
       ...(opts.configDir ? { CLAUDE_CONFIG_DIR: opts.configDir } : {}),
     },
@@ -63,7 +64,7 @@ describe('claude-bypass step', () => {
     })
     const result = await claudeBypassStep.run(c)
     expect(result.ok).toBe(true)
-    const written = JSON.parse(await c.fs.readFile('/home/vscode/.claude.json'))
+    const written = JSON.parse(await c.fs.readFile(p('/home/vscode/.claude.json')))
     expect(written.existing).toBe('value')
     expect(written.hasCompletedOnboarding).toBe(true)
   })
@@ -75,7 +76,7 @@ describe('claude-bypass step', () => {
       preseed: { path: '/opt/claude/.claude.json', content: '{}' },
     })
     await claudeBypassStep.run(c)
-    expect(await c.fs.exists('/opt/claude/.claude.json')).toBe(true)
+    expect(await c.fs.exists(p('/opt/claude/.claude.json'))).toBe(true)
   })
 
   it('errors when claude does not produce the config file', async () => {

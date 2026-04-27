@@ -1,8 +1,19 @@
+import { operatorPath } from '@/core/security/path'
 import { z } from 'zod'
 
+/**
+ * Runtime env. `HOME` is transformed into an `AbsolutePath` brand at
+ * parse time so every consumer downstream gets a path-typed value
+ * — no `${env.HOME}/.claude` interpolation reaches `fs.*` without
+ * having gone through `joinPath`. `passthrough()` keeps unknown keys
+ * untyped (and unusable) for forwards-compat.
+ */
 export const EnvSchema = z
   .object({
-    HOME: z.string().min(1),
+    HOME: z
+      .string()
+      .min(1)
+      .transform((v) => operatorPath(v)),
     USER: z.string().optional(),
     TZ: z.string().optional(),
     PATH: z.string().optional(),

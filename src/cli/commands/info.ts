@@ -1,6 +1,8 @@
-import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME, UID_IMAGE_SUFFIX } from '@/config'
+import { UID_IMAGE_SUFFIX } from '@/config'
 import { extractCustomMounts } from '@/core/devcontainer/manipulate-mounts'
+import { devcontainerDirOf, devcontainerJsonOf } from '@/core/paths'
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { operatorPath } from '@/core/security/path'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import { type InfoSummary, InfoSummarySchema } from '@/schemas/info-summary'
 import type { CommandDeps } from '../deps'
@@ -13,12 +15,13 @@ export interface InfoArgs {
 
 async function collectSummary(args: InfoArgs, deps: CommandDeps): Promise<InfoSummary> {
   const { docker, fs } = deps
-  const project = computeProjectId(args.cwd)
-  const dcDir = `${args.cwd}/${DEVCONTAINER_DIR}`
-  const dcJson = `${dcDir}/${DEVCONTAINER_FILENAME}`
+  const cwd = operatorPath(args.cwd)
+  const project = computeProjectId(cwd)
+  const dcDir = devcontainerDirOf(cwd)
+  const dcJson = devcontainerJsonOf(cwd)
 
   const summary: InfoSummary = {
-    workspaceFolder: args.cwd,
+    workspaceFolder: cwd,
     projectName: project.projectName,
     containerLabel: project.containerLabel,
     hasDevcontainerDir: await fs.exists(dcDir),

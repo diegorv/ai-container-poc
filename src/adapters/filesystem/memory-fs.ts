@@ -1,4 +1,5 @@
 import { dirname, posix } from 'node:path'
+import { operatorPath } from '@/core/security/path'
 import type { FileStat, FileSystem } from '@/ports/filesystem'
 
 type Entry =
@@ -252,7 +253,7 @@ export function createMemoryFs(
     async realpath(rawPath) {
       const path = normalize(rawPath)
       if (!entries.has(path)) throw enoent(path)
-      return path
+      return operatorPath(path)
     },
 
     async symlink(target, rawPath) {

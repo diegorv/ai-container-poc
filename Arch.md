@@ -678,3 +678,181 @@ For a 50-line wrapper, bash pays off. For what this project will become (~1500-2
 -----
 
 *This document is alive. When an architectural decision changes, update here before propagating to code.*
+
+-----
+
+## Security architecture: untrusted-input by construction
+
+`mydevc` runs containers that execute LLM-generated code. The container is fully untrusted: it controls its own filesystem (including the bind-mounted workspace), env vars, labels, and `Config.User`. Anything the host CLI consumes from those sources must not, by accident, become a path component, a command argument, a mount target, or a filename on the host.
+
+Convention-based validation (“remember to call the helper”) failed once already — gaps were found during audit. This section describes the **structural** approach: types make insecure use impossible, validators are the only legitimate bridge, sinks are the natural choke point.
+
+### Layers
+
+```
+┌───────────────────────────────────────────────────────────┐
+│ 1. SOURCE (Port output)                                   │
+│    Docker.inspectContainer() returns                       │
+│      { user: Untrusted<'docker.config.user'>,             │
+│        labels: Record<string, Untrusted<...>>,            │
+│        env: Untrusted<...>[] }                            │
+│    Only adapters can construct Untrusted<>.               │
+└───────────────────────────────────────────────────────────┘
+                          ↓
+┌───────────────────────────────────────────────────────────┐
+│ 2. BRIDGE (Validator — single legitimate path)            │
+│    asPosixUserName(Untrusted) -> PosixUserName | undef.   │
+│    asSafeFilename(Untrusted)  -> SafeFilename  | undef.   │
+│    Validators are pure, total, and the only producers of   │
+│    capability brands. Live in core/security/.              │
+└───────────────────────────────────────────────────────────┘
+                          ↓
+┌───────────────────────────────────────────────────────────┐
+│ 3. CAPABILITY (validated value)                           │
+│    SafeFilename, PosixUserName, AbsolutePathUnder<P>,     │
+│    SafeMountField. Each brand encodes one invariant.      │
+│    Capabilities are subtypes of string — can be passed     │
+│    to existing string-accepting APIs (Phase 1).            │
+└───────────────────────────────────────────────────────────┘
+                          ↓
+┌───────────────────────────────────────────────────────────┐
+│ 4. SINK (constrained API — Phase 2)                       │
+│    FileSystem.writeFile(path: AbsolutePath, ...)          │
+│    Shell.exec(cmd: SafeShellArg, args: SafeShellArg[])    │
+│    Sinks demand capability brands; raw strings rejected.  │
+└───────────────────────────────────────────────────────────┘
+```
+
+### What `Untrusted<S>` looks like
+
+```typescript
+// src/core/security/brand.ts
+declare const UNTRUSTED: unique symbol
+
+export interface Untrusted<S extends string = string> {
+  readonly [UNTRUSTED]: { readonly source: S }
+  /**
+   * Returns the raw string. ONLY for display, logging, equality. Any
+   * use that decides an effect (path, command, filename) must go
+   * through a validator instead. Greppable: every `.unsafe()` is an
+   * audit point.
+   */
+  unsafe(): string
+}
+
+export function untrust<S extends string>(value: string, source: S): Untrusted<S>
+```
+
+Critically, `Untrusted<S>` is **not** a subtype of `string`. The following won't compile:
+
+```typescript
+const path = `/home/${info.user}/.claude`  // ❌ info.user is not a string
+fs.writeFile(`${dir}/${info.labels.foo}`, …)  // ❌ same
+```
+
+Only two things compile:
+
+```typescript
+// (a) Display path: explicit unwrap, easy to spot in review
+logger.info(`Container ${info.user.unsafe()} skipped`)
+
+// (b) Effect path: validate first
+const u = asPosixUserName(info.user)
+if (!u) { logger.warn('skip'); return }
+const path = `/home/${u}/.claude`           // u is PosixUserName (string subtype)
+```
+
+### Capability brands
+
+Capabilities **are** subtypes of `string`, by design. After validation, the value is safe to pass to any existing string-accepting API:
+
+```typescript
+type SafeFilename = string & { readonly __brand: 'safe-filename' }
+type PosixUserName = string & { readonly __brand: 'posix-username' }
+type AbsolutePathUnder<P extends string> =
+  string & { readonly __brand: 'abs-path'; readonly __under: P }
+```
+
+This is intentional asymmetry. `Untrusted` is opaque (forces unwrap). `SafeFilename` is a string subtype (drops in at sinks). The validator is the *only* function that produces a capability — so wherever a capability shows up, you know it was validated.
+
+### Adapter quarantine
+
+Only `src/adapters/` can call `untrust()`. Specifically, `cli-docker.ts` calls it for every value coming out of `docker inspect`:
+
+```typescript
+function inspectToInfo(c: DockerInspectContainer): ContainerInfo {
+  return {
+    id: c.Id,                                 // Docker validates format
+    name: (c.Name ?? '').replace(/^\//, ''),
+    image: c.Config?.Image ?? c.Image ?? '',
+    labels: brandLabels(c.Config?.Labels ?? {}),
+    env: (c.Config?.Env ?? []).map((e) => untrust(e, 'docker.config.env')),
+    user: untrust(c.Config?.User ?? '', 'docker.config.user'),
+    // ...
+  }
+}
+```
+
+`fake-docker.ts` uses the same `untrust()` so test fixtures are typed identically — no special path that only exists in tests.
+
+### What is **not** branded (and why)
+
+- `id`, `name`, `image`, `state` on `ContainerInfo`. Docker daemon validates their formats; we trust the daemon. They’re used for display and as docker CLI args (passed via array, no shell concat).
+- `args.cwd` and other CLI argv values. The operator running `mydevc` is trusted by definition — they have shell access on the host already. We don’t treat their argv as adversarial.
+- `templatesDir` and other paths bundled with the binary.
+- Display strings, log messages, error text. Branding these would be noise.
+
+The rule: **brand values that flow into security-sensitive sinks AND originate from a non-operator source.** Everything else stays plain.
+
+### Phases of enforcement
+
+**Phase 1 (Untrusted at source).** Branded `Untrusted<S>` on Docker port outputs (`info.user`, `info.labels`, `info.env`). Validators in `core/security/untrusted-input` are the only legitimate path from `Untrusted` to a capability brand (`SafeFilename`, `PosixUserName`, `HomeOrRootAbsolutePath`). Forgetting to validate is a compile error: `Untrusted<>` is opaque and not assignable to `string`.
+
+**Phase 2 (sinks demand capabilities).** The `FileSystem` port now requires `AbsolutePath` for every method that takes a path. Construction goes through `core/security/path`:
+- `literalPath('/opt/mydevc/...')` for hardcoded paths bundled with the binary,
+- `operatorPath(args.cwd)` for CLI argv and `$HOME` (operator-trusted, validates absolute + no NUL, normalises `..`),
+- `joinPath(base, ...segs: SafeFilename[])` for composition — segments must be capability-typed.
+
+`EnvSchema` brands `HOME` at parse time, so `env.HOME` is `AbsolutePath` everywhere downstream. `CommandDeps.templatesDir` is `AbsolutePath`. `core/paths.ts` exposes `devcontainerJsonOf(cwd)`, `devcontainerDirOf(cwd)`, `hostClaudeProjectsOf(home)` so the common compositions stay readable.
+
+Result: an interpolation like ``` `${env.HOME}/.claude/projects/${info.user}` ``` does not compile. `info.user` is `Untrusted` (not a string), `env.HOME` is `AbsolutePath` (a string subtype, but template-literal output is plain string and won't satisfy a sink that wants `AbsolutePath`).
+
+**Phase 2 — Shell args.** The `Shell` port keeps `args: readonly string[]` (no shell concatenation possible — execa-style `execve()`), with a runtime fence at the adapter that asserts no NUL byte. `Untrusted<>` cannot be passed because it is not a `string`; capability brands (`SafeFilename` etc.) all guarantee no NUL by construction. The fence is defense in depth for raw string literals.
+
+### What remains plain `string`
+
+- `args.cwd` and similar CLI argv values until the command brands them (one `operatorPath(args.cwd)` per command entry).
+- Display strings, log messages, error text, JSON payloads.
+- Docker container ids, image names, label keys — daemon-controlled formats.
+- `info.id`, `info.name`, `info.image`, `info.state` on `ContainerInfo` — daemon-validated.
+
+### No-escape mechanisms
+
+- **No `as` in core/cli except inside `core/security/`.** That single module has the casts that produce branded values. Reviewers focus there.
+- **No direct import of `node:fs` / `node:child_process` outside adapters.** Already enforced by CLAUDE.md and project conventions.
+- **Type tests** (`*.test-d.ts`) prove that:
+  - `info.user` cannot be assigned to `string`,
+  - `asPosixUserName('foo')` (raw string) does not compile — input must be `Untrusted<>`,
+  - capability brands are not interchangeable (`SafeFilename` ≠ `PosixUserName`).
+- **Defense in depth at sinks.** Even with branded inputs, `safeDestPath` still uses `path.resolve` + prefix check. Two independent layers of protection.
+
+### Adding a new untrusted source
+
+When a new field crosses host ↔ container — e.g., a new label, a new file extracted by `docker cp`, a new env var:
+
+1. Brand it as `Untrusted<S>` at the port (and adapters).
+2. Add a capability brand + validator in `core/security/` if no existing one fits. Capability brands encode invariants (“safe POSIX filename”, “absolute path under `/home/<user>`”), not field origins.
+3. Consumers compile-fail until they call the validator. That’s the win.
+4. If the value is only used for display, `.unsafe()` is the audit point — every occurrence is a one-line review.
+
+### Limits
+
+- This is a TypeScript-level guarantee. A determined attacker with code-execution on the host obviously bypasses it. The purpose is to eliminate **accidental** misuse — the dominant failure mode for security bugs.
+- `as`-casts are not blocked by the compiler, only by the lint/review process. Treat any new `as` outside `core/security/` as a security review event.
+- This does not protect against **logic bugs** in the validators themselves. `untrusted-input.test.ts` is the fence around that.
+
+### References
+
+- Trusted Types (DOM/TC39): `TrustedHTML` etc — same shape, browser-side.
+- Refined types (F\*, Liquid Haskell): the static-analysis ideal this approximates.
+- Object-capability security (E, SES, Caja): the broader pattern of authority-by-reference. `mydevc`’s DI of port objects is already capability-shaped; branded values extend that to data.

@@ -41,7 +41,9 @@ export async function ps(_args: Record<string, never>, deps: CommandDeps): Promi
     return
   }
   const rows: Row[] = containers.map((c) => {
-    const folder = c.labels[CONTAINER_LABEL_KEY] ?? ''
+    // Display only — `.unsafe()` is the audit point. `ps` writes the
+    // value to the terminal, never feeds it to a path or command.
+    const folder = c.labels[CONTAINER_LABEL_KEY]?.unsafe() ?? ''
     const project = folder.split('/').pop() || folder || c.id.slice(0, 12)
     return {
       project,

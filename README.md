@@ -443,6 +443,19 @@ The container is the sandbox: `bypassPermissions` is auto-configured, so Claude 
 
 `SYS_ADMIN` in `runArgs` is rejected by `mydevc up`/`rebuild` because it would defeat the read-only `.devcontainer/` mount that prevents a compromised process from injecting commands into `devcontainer.json`.
 
+### Untrusted-input handling — types as the fence
+
+The host CLI consumes data the container fully controls: env vars, container labels, `Config.User`, files extracted via `docker cp`, the workspace-side `devcontainer.json`. A path-traversal or command-injection bug in any of those flows would punch through the sandbox. mydevc treats this as the dominant failure mode for an AI-driven devcontainer and pushes the validation **into the type system** rather than relying on developers to remember a helper.
+
+Two coupled brands do the work:
+
+- `Untrusted<S>` — opaque wrapper around values that came from a non-operator source. Not assignable to `string`. Cannot be interpolated into a path, command, or filename. The compiler refuses ``` `${info.user}/foo` ```; you have to either validate (`asPosixUserName`) or unwrap explicitly (`info.user.unsafe()`, audit point) for display-only use.
+- `AbsolutePath`, `SafeFilename`, `PosixUserName`, `HomeOrRootAbsolutePath`, `SafeMountField` — capability brands produced *only* by validators in `src/core/security/`. The `FileSystem` port demands `AbsolutePath` at every method, so a raw string literal cannot reach `fs.readFile`/`writeFile`/`copy`/etc.
+
+The result: forgetting to validate is a compile error, not a silent vulnerability. A future agent (human or LLM) editing this codebase cannot reintroduce a path-traversal regression of the same shape we already fixed without first widening the brand definitions deliberately. Defense-in-depth at the sink is preserved (e.g. `safeDestPath` still does `path.resolve` + prefix check), and the `Shell` adapter asserts no NUL byte on every arg before calling `execve()`.
+
+The full design — including the threat model, the layer diagram, and what is *not* branded and why — lives in [`Arch.md`](./Arch.md) under "Security architecture". The day-to-day rules for adding new untrusted sources are in [`CLAUDE.md`](./CLAUDE.md).
+
 ### Network isolation — `--secure`
 
 Pass `--secure` to `template` or `.` to drop `firewall-allowlist.txt` into `.devcontainer/`. The container's `postStartCommand` then runs `setup-firewall.sh` on every start, applying iptables rules that:

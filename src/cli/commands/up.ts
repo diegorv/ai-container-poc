@@ -1,7 +1,9 @@
-import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
+import { findUnknownTopLevelFields } from '@/core/devcontainer/find-unknown-fields'
+import { devcontainerJsonOf } from '@/core/paths'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
@@ -16,8 +18,9 @@ export interface UpArgs {
  * devcontainer CLI to bring the container up.
  */
 export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
-  const { devcontainer, docker, fs, logger } = deps
-  const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
+  const { devcontainer, docker, env, fs, logger } = deps
+  const cwd = operatorPath(args.cwd)
+  const dcJson = devcontainerJsonOf(cwd)
 
   if (await fs.exists(dcJson)) {
     const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
@@ -30,21 +33,27 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
         },
       )
     }
-    const dangerous = findDangerousFields(parsed)
+    const dangerous = findDangerousFields(parsed, env.HOME)
     if (dangerous.length > 0) {
       const f = dangerous[0]
       throw new CliError(`Dangerous devcontainer.json field: ${f?.reason}`, {
         suggestion: `Remove or correct '${f?.field}' in ${dcJson} and re-run.`,
       })
     }
+    const unknown = findUnknownTopLevelFields(parsed)
+    if (unknown.length > 0) {
+      logger.warn(
+        `devcontainer.json contains fields the audit does not understand: ${unknown.join(', ')}. They are passed to the runtime as-is.`,
+      )
+    }
   }
 
-  await logger.withSpinner(`Starting devcontainer in ${args.cwd}`, () =>
-    devcontainer.up({ workspaceFolder: args.cwd }),
+  await logger.withSpinner(`Starting devcontainer in ${cwd}`, () =>
+    devcontainer.up({ workspaceFolder: cwd }),
   )
 
   // Don't trust the in-container postStartCommand to apply the firewall
   // — a malicious devcontainer.json could override it. Re-run from the
   // host and abort if the script fails.
-  await enforceFirewall(args.cwd, { docker, fs, logger })
+  await enforceFirewall(cwd, { docker, fs, logger })
 }

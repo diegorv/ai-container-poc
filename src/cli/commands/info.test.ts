@@ -4,6 +4,7 @@ import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { info } from './info'
@@ -22,8 +23,8 @@ function buildDeps(
     shell: createFakeShell(),
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
-    templatesDir: '/tpl',
-    env: { HOME: '/home/alice' },
+    templatesDir: p('/tpl'),
+    env: { HOME: p('/home/alice') },
   }
 }
 
@@ -37,8 +38,8 @@ describe('info command', () => {
 
   it('warns when devcontainer exists but no container is running', async () => {
     const deps = buildDeps()
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{}')
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{}')
     await info({ cwd: '/proj' }, deps)
     expect(deps.logger.has('warn', 'No devcontainer found')).toBe(true)
   })
@@ -61,8 +62,8 @@ describe('info command', () => {
       ],
     })
     const deps = buildDeps(docker)
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{}')
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{}')
 
     await info({ cwd: '/proj' }, deps)
 
@@ -87,8 +88,8 @@ describe('info command', () => {
       images: ['vsc-crypto', 'vsc-crypto-uid'],
     })
     const deps = buildDeps(docker)
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{}')
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{}')
     await info({ cwd: '/proj' }, deps)
     expect(deps.logger.has('info', '-uid')).toBe(true)
   })
@@ -108,9 +109,9 @@ describe('info command', () => {
       images: ['vsc-crypto', 'vsc-crypto-uid'],
     })
     const deps = buildDeps(docker)
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(
-      '/proj/.devcontainer/devcontainer.json',
+      p('/proj/.devcontainer/devcontainer.json'),
       JSON.stringify({ mounts: ['source=/h/data,target=/data,type=bind'] }),
     )
     const out = await info({ cwd: '/proj', json: true }, deps)
@@ -137,9 +138,9 @@ describe('info command', () => {
       ],
     })
     const deps = buildDeps(docker)
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(
-      '/proj/.devcontainer/devcontainer.json',
+      p('/proj/.devcontainer/devcontainer.json'),
       JSON.stringify({
         mounts: [
           'source=cmdhist,target=/commandhistory,type=volume',

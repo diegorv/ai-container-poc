@@ -1,4 +1,5 @@
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import type { CommandDeps } from '../deps'
 
@@ -16,7 +17,7 @@ export interface LogsArgs {
  */
 export async function logs(args: LogsArgs, deps: CommandDeps): Promise<number> {
   const { docker, shell } = deps
-  const project = computeProjectId(args.cwd)
+  const project = computeProjectId(operatorPath(args.cwd))
   const containers = await docker.listContainers({ label: project.containerLabel, all: true })
   const container = containers[0]
   if (!container) {

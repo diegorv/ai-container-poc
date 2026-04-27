@@ -1,5 +1,6 @@
-import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { extractCustomMounts, mergeCustomMounts } from '@/core/devcontainer/manipulate-mounts'
+import { devcontainerDirOf, devcontainerJsonOf } from '@/core/paths'
+import { joinPath, operatorPath, safeFilename } from '@/core/security/path'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -42,8 +43,9 @@ const FIREWALL_ALLOWLIST = 'firewall-allowlist.txt'
  */
 export async function template(args: TemplateArgs, deps: CommandDeps): Promise<void> {
   const { fs, logger, prompt, templatesDir } = deps
-  const targetDir = `${args.cwd}/${DEVCONTAINER_DIR}`
-  const targetJson = `${targetDir}/${DEVCONTAINER_FILENAME}`
+  const cwd = operatorPath(args.cwd)
+  const targetDir = devcontainerDirOf(cwd)
+  const targetJson = devcontainerJsonOf(cwd)
 
   let preservedMounts: ReturnType<typeof extractCustomMounts> = []
 
@@ -70,7 +72,8 @@ export async function template(args: TemplateArgs, deps: CommandDeps): Promise<v
   await fs.mkdir(targetDir, { recursive: true })
 
   for (const file of TEMPLATE_FILES) {
-    await fs.copy(`${templatesDir}/${file}`, `${targetDir}/${file}`)
+    const seg = safeFilename(file)
+    await fs.copy(joinPath(templatesDir, seg), joinPath(targetDir, seg))
   }
 
   if (preservedMounts.length > 0) {
@@ -82,8 +85,10 @@ export async function template(args: TemplateArgs, deps: CommandDeps): Promise<v
   }
 
   if (args.secure) {
-    await fs.copy(`${templatesDir}/${FIREWALL_ALLOWLIST}`, `${targetDir}/${FIREWALL_ALLOWLIST}`)
-    logger.info(`Firewall allowlist copied to ${targetDir}/${FIREWALL_ALLOWLIST}`)
+    const seg = safeFilename(FIREWALL_ALLOWLIST)
+    const dest = joinPath(targetDir, seg)
+    await fs.copy(joinPath(templatesDir, seg), dest)
+    logger.info(`Firewall allowlist copied to ${dest}`)
   }
 
   logger.success(`Template installed to ${targetDir}`)

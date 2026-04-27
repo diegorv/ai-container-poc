@@ -1,3 +1,4 @@
+import { untrust, untrustRecord } from '@/core/security/brand'
 import { CliError } from '@/lib/cli-error'
 import type { ContainerInfo, Docker, DockerExecResult, VolumeInfo } from '@/ports/docker'
 import type { Shell } from '@/ports/shell'
@@ -41,7 +42,7 @@ function inspectToInfo(c: DockerInspectContainer): ContainerInfo {
     id: c.Id,
     name: (c.Name ?? '').replace(/^\//, ''),
     image: c.Config?.Image ?? c.Image ?? '',
-    labels: c.Config?.Labels ?? {},
+    labels: untrustRecord(c.Config?.Labels ?? {}, 'docker.config.labels'),
     state: c.State?.Status ?? '',
     mounts: (c.Mounts ?? []).map((m) => ({
       type: m.Type ?? '',
@@ -49,8 +50,8 @@ function inspectToInfo(c: DockerInspectContainer): ContainerInfo {
       source: m.Source,
       destination: m.Destination ?? '',
     })),
-    env: c.Config?.Env ?? [],
-    user: c.Config?.User ?? '',
+    env: (c.Config?.Env ?? []).map((e) => untrust(e, 'docker.config.env')),
+    user: untrust(c.Config?.User ?? '', 'docker.config.user'),
   }
 }
 

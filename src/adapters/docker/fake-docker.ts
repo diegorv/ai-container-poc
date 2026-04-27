@@ -1,3 +1,4 @@
+import { untrust, untrustRecord } from '@/core/security/brand'
 import type {
   ContainerInfo,
   ContainerMount,
@@ -6,6 +7,11 @@ import type {
   VolumeInfo,
 } from '@/ports/docker'
 
+/**
+ * Test seed shape — accepts plain strings for ergonomics. The seed is
+ * branded into `Untrusted<>` by `seedToInfo` so fixtures match the real
+ * adapter's output exactly. Tests never construct `Untrusted` by hand.
+ */
 export interface FakeContainerSeed {
   id: string
   name?: string
@@ -66,11 +72,11 @@ function seedToInfo(seed: FakeContainerSeed): ContainerInfo {
     id: seed.id,
     name: seed.name ?? seed.id,
     image: seed.image ?? '',
-    labels: seed.labels ?? {},
+    labels: untrustRecord(seed.labels ?? {}, 'docker.config.labels'),
     state: seed.state ?? 'running',
     mounts: seed.mounts ?? [],
-    env: seed.env ?? [],
-    user: seed.user ?? '',
+    env: (seed.env ?? []).map((e) => untrust(e, 'docker.config.env')),
+    user: untrust(seed.user ?? '', 'docker.config.user'),
   }
 }
 
@@ -92,13 +98,18 @@ export function createFakeDocker(opts: FakeDockerOptions = {}): FakeDocker {
   for (const c of opts.containers ?? []) containers.set(c.id, seedToInfo(c))
   for (const v of opts.volumes ?? []) volumes.set(v.name, seedToVolume(v))
 
-  function matchesLabel(labels: Record<string, string>, expr: string | undefined): boolean {
+  function matchesLabel(
+    labels: Readonly<Record<string, { unsafe(): string } | string>>,
+    expr: string | undefined,
+  ): boolean {
     if (!expr) return true
     const eqIdx = expr.indexOf('=')
     if (eqIdx === -1) return Object.prototype.hasOwnProperty.call(labels, expr)
     const key = expr.slice(0, eqIdx)
     const value = expr.slice(eqIdx + 1)
-    return labels[key] === value
+    const got = labels[key]
+    if (got === undefined) return false
+    return (typeof got === 'string' ? got : got.unsafe()) === value
   }
 
   return {

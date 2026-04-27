@@ -37,4 +37,43 @@ describe('findDangerousFields', () => {
   it('accepts containerUser=vscode (template default)', () => {
     expect(findDangerousFields({ containerUser: 'vscode' })).toEqual([])
   })
+
+  it('flags a string bind mount whose source is /etc', () => {
+    const findings = findDangerousFields({
+      mounts: ['source=/etc,target=/host-etc,type=bind'],
+    })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.field).toBe('mounts[0]')
+    expect(findings[0]?.reason).toMatch(/\/etc/)
+  })
+
+  it('flags a string bind mount whose source is the home SSH dir', () => {
+    const findings = findDangerousFields(
+      { mounts: ['source=/home/alice/.ssh,target=/x,type=bind'] },
+      '/home/alice',
+    )
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.reason).toMatch(/credentials/)
+  })
+
+  it('accepts a benign bind mount under home', () => {
+    expect(
+      findDangerousFields(
+        { mounts: ['source=/home/alice/work,target=/work,type=bind'] },
+        '/home/alice',
+      ),
+    ).toEqual([])
+  })
+
+  it('accepts volume mounts (no host source)', () => {
+    expect(findDangerousFields({ mounts: ['source=myvol,target=/data,type=volume'] })).toEqual([])
+  })
+
+  it('flags an object bind mount whose source is the docker socket', () => {
+    const findings = findDangerousFields({
+      mounts: [{ type: 'bind', source: '/var/run/docker.sock', target: '/x' }],
+    })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.field).toBe('mounts[0]')
+  })
 })

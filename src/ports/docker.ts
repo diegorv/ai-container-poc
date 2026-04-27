@@ -1,3 +1,5 @@
+import type { Untrusted } from '@/core/security/brand'
+
 export interface ContainerMount {
   type: 'volume' | 'bind' | string
   /** Volume name (when type === 'volume'). */
@@ -7,17 +9,31 @@ export interface ContainerMount {
   destination: string
 }
 
+/**
+ * Information about a container as reported by `docker inspect`.
+ *
+ * Fields that originate inside the container's config (`labels`, `env`,
+ * `user`) are typed as `Untrusted<S>` because the container fully
+ * controls them — `containerEnv`/`runArgs --label`/`Dockerfile USER`
+ * are all writeable by anything that can edit `devcontainer.json` or
+ * the image. Consumers must validate via `core/security` before using
+ * these in paths, commands, or filenames; see `Arch.md` § "Security
+ * architecture" for the full design.
+ *
+ * `id`, `name`, `image`, `state`, and `mounts.*` come from the Docker
+ * daemon and follow daemon-validated formats — they're plain strings.
+ */
 export interface ContainerInfo {
   id: string
   name: string
   image: string
-  labels: Record<string, string>
+  labels: Readonly<Record<string, Untrusted<'docker.config.labels'>>>
   state: string
   mounts: ContainerMount[]
-  /** Raw `KEY=VALUE` env entries from the container config. */
-  env: string[]
-  /** Configured user (`Config.User` from docker inspect). */
-  user: string
+  /** Raw `KEY=VALUE` env entries; container-controlled. */
+  env: ReadonlyArray<Untrusted<'docker.config.env'>>
+  /** `Config.User` (`Dockerfile USER` / `containerUser`); container-controlled. */
+  user: Untrusted<'docker.config.user'>
 }
 
 export interface VolumeInfo {

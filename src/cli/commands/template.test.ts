@@ -1,6 +1,7 @@
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { template } from './template'
@@ -13,8 +14,8 @@ function buildDeps(fs: ReturnType<typeof createMemoryFs>): CommandDeps {
     shell: {} as never,
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
-    templatesDir: '/tpl',
-    env: { HOME: '/home/alice' },
+    templatesDir: p('/tpl'),
+    env: { HOME: p('/home/alice') },
   }
 }
 
@@ -31,54 +32,56 @@ const TEMPLATE_ZSHRC = 'export PS1="$ "\n'
 const TEMPLATE_FIREWALL = '# allowlist\napi.anthropic.com\ngithub.com\n'
 
 function seedTemplates(fs: ReturnType<typeof createMemoryFs>): void {
-  fs.writeFile('/tpl/Dockerfile', TEMPLATE_DOCKERFILE)
-  fs.writeFile('/tpl/devcontainer.json', TEMPLATE_DEVCONTAINER)
-  fs.writeFile('/tpl/.zshrc', TEMPLATE_ZSHRC)
-  fs.writeFile('/tpl/firewall-allowlist.txt', TEMPLATE_FIREWALL)
-  fs.writeFile('/tpl/post-install-bootstrap.sh', '#!/usr/bin/env bash\n')
-  fs.writeFile('/tpl/setup-firewall.sh', '#!/usr/bin/env bash\n')
-  fs.writeFile('/tpl/chown-managed.sh', '#!/usr/bin/env bash\n')
-  fs.writeFile('/tpl/sudoers.mydevc', '# sudoers\n')
-  fs.writeFile('/tpl/.dockerignore', '.git\n')
+  fs.writeFile(p('/tpl/Dockerfile'), TEMPLATE_DOCKERFILE)
+  fs.writeFile(p('/tpl/devcontainer.json'), TEMPLATE_DEVCONTAINER)
+  fs.writeFile(p('/tpl/.zshrc'), TEMPLATE_ZSHRC)
+  fs.writeFile(p('/tpl/firewall-allowlist.txt'), TEMPLATE_FIREWALL)
+  fs.writeFile(p('/tpl/post-install-bootstrap.sh'), '#!/usr/bin/env bash\n')
+  fs.writeFile(p('/tpl/setup-firewall.sh'), '#!/usr/bin/env bash\n')
+  fs.writeFile(p('/tpl/chown-managed.sh'), '#!/usr/bin/env bash\n')
+  fs.writeFile(p('/tpl/sudoers.mydevc'), '# sudoers\n')
+  fs.writeFile(p('/tpl/.dockerignore'), '.git\n')
 }
 
 describe('template command', () => {
   it('creates .devcontainer/ with the three template files on a fresh project', async () => {
     const fs = createMemoryFs()
-    await fs.mkdir('/proj', { recursive: true })
-    await fs.mkdir('/tpl', { recursive: true })
+    await fs.mkdir(p('/proj'), { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
     seedTemplates(fs)
     const deps = buildDeps(fs)
 
     await template({ cwd: '/proj' }, deps)
 
-    expect(await fs.readFile('/proj/.devcontainer/Dockerfile')).toBe(TEMPLATE_DOCKERFILE)
-    expect(await fs.readFile('/proj/.devcontainer/.zshrc')).toBe(TEMPLATE_ZSHRC)
-    expect(JSON.parse(await fs.readFile('/proj/.devcontainer/devcontainer.json')).name).toBe(
+    expect(await fs.readFile(p('/proj/.devcontainer/Dockerfile'))).toBe(TEMPLATE_DOCKERFILE)
+    expect(await fs.readFile(p('/proj/.devcontainer/.zshrc'))).toBe(TEMPLATE_ZSHRC)
+    expect(JSON.parse(await fs.readFile(p('/proj/.devcontainer/devcontainer.json'))).name).toBe(
       'Sandbox',
     )
   })
 
   it('aborts when overwrite is rejected and leaves files intact', async () => {
     const fs = createMemoryFs()
-    await fs.mkdir('/tpl', { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
     seedTemplates(fs)
-    await fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await fs.writeFile('/proj/.devcontainer/devcontainer.json', '{"name":"old"}')
+    await fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{"name":"old"}')
 
     const deps = buildDeps(fs)
     deps.prompt = createScriptedPrompt([false])
 
     await template({ cwd: '/proj' }, deps)
 
-    expect(JSON.parse(await fs.readFile('/proj/.devcontainer/devcontainer.json')).name).toBe('old')
+    expect(JSON.parse(await fs.readFile(p('/proj/.devcontainer/devcontainer.json'))).name).toBe(
+      'old',
+    )
   })
 
   it('preserves custom mounts across overwrite when force=true', async () => {
     const fs = createMemoryFs()
-    await fs.mkdir('/tpl', { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
     seedTemplates(fs)
-    await fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     const existing = {
       name: 'old',
       mounts: [
@@ -86,12 +89,12 @@ describe('template command', () => {
         'source=/h/data,target=/data,type=bind',
       ],
     }
-    await fs.writeFile('/proj/.devcontainer/devcontainer.json', JSON.stringify(existing))
+    await fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), JSON.stringify(existing))
 
     const deps = buildDeps(fs)
     await template({ cwd: '/proj', force: true }, deps)
 
-    const after = JSON.parse(await fs.readFile('/proj/.devcontainer/devcontainer.json'))
+    const after = JSON.parse(await fs.readFile(p('/proj/.devcontainer/devcontainer.json')))
     // Template's managed mounts come back as-is.
     expect(after.mounts).toContain('source=cmdhist,target=/commandhistory,type=volume')
     // Custom mount was preserved.
@@ -100,19 +103,21 @@ describe('template command', () => {
 
   it('does not copy firewall-allowlist.txt by default', async () => {
     const fs = createMemoryFs()
-    await fs.mkdir('/proj', { recursive: true })
-    await fs.mkdir('/tpl', { recursive: true })
+    await fs.mkdir(p('/proj'), { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
     seedTemplates(fs)
     await template({ cwd: '/proj' }, buildDeps(fs))
-    expect(await fs.exists('/proj/.devcontainer/firewall-allowlist.txt')).toBe(false)
+    expect(await fs.exists(p('/proj/.devcontainer/firewall-allowlist.txt'))).toBe(false)
   })
 
   it('copies firewall-allowlist.txt when secure=true', async () => {
     const fs = createMemoryFs()
-    await fs.mkdir('/proj', { recursive: true })
-    await fs.mkdir('/tpl', { recursive: true })
+    await fs.mkdir(p('/proj'), { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
     seedTemplates(fs)
     await template({ cwd: '/proj', secure: true }, buildDeps(fs))
-    expect(await fs.readFile('/proj/.devcontainer/firewall-allowlist.txt')).toBe(TEMPLATE_FIREWALL)
+    expect(await fs.readFile(p('/proj/.devcontainer/firewall-allowlist.txt'))).toBe(
+      TEMPLATE_FIREWALL,
+    )
   })
 })

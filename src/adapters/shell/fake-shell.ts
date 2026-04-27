@@ -1,15 +1,16 @@
+import { assertNoNul } from '@/core/security/untrusted-input'
 import type { Shell, ShellOptions, ShellResult } from '@/ports/shell'
 
 export interface ShellInvocation {
   command: string
-  args: string[]
+  args: readonly string[]
   options: ShellOptions | undefined
   interactive: boolean
 }
 
 export type ShellResponder = (
   command: string,
-  args: string[],
+  args: readonly string[],
   options: ShellOptions | undefined,
 ) => Partial<ShellResult> | undefined
 
@@ -42,10 +43,16 @@ export function createFakeShell(opts: FakeShellOptions = {}): FakeShell {
 
   function record(
     command: string,
-    args: string[],
+    args: readonly string[],
     options: ShellOptions | undefined,
     interactive: boolean,
   ): ShellResult {
+    // Mirror the real adapter's NUL fence so tests fail loudly on the
+    // same kind of injection that production would refuse.
+    assertNoNul('shell.command', command)
+    for (let i = 0; i < args.length; i++) {
+      assertNoNul(`shell.args[${i}]`, args[i] ?? '')
+    }
     calls.push({ command, args, options, interactive })
     const matched = responder(command, args, options)
     return { ...defaults, ...(matched ?? {}) }

@@ -1,4 +1,7 @@
+import { joinPath, safeFilename } from '@/core/security/path'
 import type { Step } from './step'
+
+const TMUX_CONF_SEG = safeFilename('.tmux.conf')
 
 const TMUX_CONFIG = `# 200k line scrollback history
 set-option -g history-limit 200000
@@ -44,7 +47,7 @@ set -g status-right '%Y-%m-%d %H:%M'
 export const tmuxConfigStep: Step = {
   name: 'tmux:config',
   async run({ fs, homeDir }) {
-    const path = `${homeDir}/.tmux.conf`
+    const path = joinPath(homeDir, TMUX_CONF_SEG)
     if (await fs.exists(path)) {
       return { ok: true, message: 'tmux config already present, skipping' }
     }

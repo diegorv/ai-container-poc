@@ -37,5 +37,15 @@ export function shellContract(name: string, build: () => Promise<Shell>): void {
       const path = await shell.which('sh')
       expect(path).toBeTruthy()
     })
+
+    it('rejects a command containing a NUL byte', async () => {
+      const shell = await build()
+      await expect(shell.exec('echo\0evil', ['hello'])).rejects.toThrow(/NUL/)
+    })
+
+    it('rejects an arg containing a NUL byte', async () => {
+      const shell = await build()
+      await expect(shell.exec('echo', ['ok', 'evil\0--rm-rf'])).rejects.toThrow(/NUL/)
+    })
   })
 }

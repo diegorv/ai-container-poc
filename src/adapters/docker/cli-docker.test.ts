@@ -30,22 +30,24 @@ describe('cli-docker via fake-shell', () => {
     })
     const docker = createCliDocker(shell)
     const list = await docker.listContainers({ label: 'devcontainer.local_folder=/proj' })
-    expect(list).toEqual([
-      {
-        id: 'abc123',
-        name: 'cool-name',
-        image: 'img',
-        labels: { foo: 'bar' },
-        state: 'running',
-        mounts: [],
-        env: [],
-        user: '',
-      },
-    ])
+    expect(list).toHaveLength(1)
+    const c = list[0]
+    expect(c).toMatchObject({
+      id: 'abc123',
+      name: 'cool-name',
+      image: 'img',
+      state: 'running',
+      mounts: [],
+    })
+    // Branded fields are unwrapped via .unsafe() — values match what the
+    // adapter saw, the wrapper is a type-level boundary.
+    expect(c?.labels.foo?.unsafe()).toBe('bar')
+    expect(c?.env).toEqual([])
+    expect(c?.user.unsafe()).toBe('')
   })
 
   it('removeContainer with force passes -f', async () => {
-    const seen: string[][] = []
+    const seen: (readonly string[])[] = []
     const shell = createFakeShell({
       binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {
@@ -74,7 +76,7 @@ describe('cli-docker via fake-shell', () => {
   })
 
   it('exec forwards user and env flags', async () => {
-    let captured: string[] = []
+    let captured: readonly string[] = []
     const shell = createFakeShell({
       binaries: { docker: '/usr/bin/docker' },
       responder: (cmd, args) => {

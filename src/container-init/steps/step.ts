@@ -1,3 +1,4 @@
+import type { AbsolutePath } from '@/core/security/brand'
 import type { FileSystem } from '@/ports/filesystem'
 import type { Logger } from '@/ports/logger'
 import type { Shell } from '@/ports/shell'
@@ -7,7 +8,7 @@ export interface StepContext {
   fs: FileSystem
   shell: Shell
   logger: Logger
-  homeDir: string
+  homeDir: AbsolutePath
   uid: number
   gid: number
   env: Env

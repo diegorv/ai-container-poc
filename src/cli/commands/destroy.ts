@@ -1,5 +1,6 @@
 import { UID_IMAGE_SUFFIX } from '@/config'
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { operatorPath } from '@/core/security/path'
 import type { ContainerInfo, Docker } from '@/ports/docker'
 import type { CommandDeps } from '../deps'
 
@@ -39,7 +40,7 @@ async function discoverResources(docker: Docker, label: string): Promise<Resourc
  */
 export async function destroy(args: DestroyArgs, deps: CommandDeps): Promise<void> {
   const { docker, logger, prompt } = deps
-  const project = computeProjectId(args.cwd)
+  const project = computeProjectId(operatorPath(args.cwd))
   const res = await discoverResources(docker, project.containerLabel)
 
   if (!res.container) {

@@ -4,6 +4,7 @@ import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { validate } from './validate'
@@ -19,8 +20,8 @@ function buildDeps(): CommandDeps & {
     shell: createFakeShell(),
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
-    templatesDir: '/tpl',
-    env: { HOME: '/home/alice' },
+    templatesDir: p('/tpl'),
+    env: { HOME: p('/home/alice') },
   }
 }
 
@@ -31,16 +32,16 @@ describe('validate command', () => {
 
   it('errors with parser context when JSON is malformed', async () => {
     const deps = buildDeps()
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await deps.fs.writeFile('/proj/.devcontainer/devcontainer.json', '{ not json')
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{ not json')
     await expect(validate({ cwd: '/proj' }, deps)).rejects.toThrow(/not valid JSON/)
   })
 
   it('errors when runArgs contains SYS_ADMIN', async () => {
     const deps = buildDeps()
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(
-      '/proj/.devcontainer/devcontainer.json',
+      p('/proj/.devcontainer/devcontainer.json'),
       JSON.stringify({ runArgs: ['--cap-add=SYS_ADMIN'] }),
     )
     await expect(validate({ cwd: '/proj' }, deps)).rejects.toThrow(/SYS_ADMIN/)
@@ -48,9 +49,9 @@ describe('validate command', () => {
 
   it('reports schema issues when fields have wrong types', async () => {
     const deps = buildDeps()
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(
-      '/proj/.devcontainer/devcontainer.json',
+      p('/proj/.devcontainer/devcontainer.json'),
       JSON.stringify({ runArgs: 'should be array', mounts: 42 }),
     )
     await expect(validate({ cwd: '/proj' }, deps)).rejects.toThrow(/schema validation/)
@@ -58,9 +59,9 @@ describe('validate command', () => {
 
   it('logs success on a valid devcontainer.json', async () => {
     const deps = buildDeps()
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(
-      '/proj/.devcontainer/devcontainer.json',
+      p('/proj/.devcontainer/devcontainer.json'),
       JSON.stringify({ name: 'sandbox', runArgs: ['--cap-add=NET_ADMIN'] }),
     )
     await validate({ cwd: '/proj' }, deps)

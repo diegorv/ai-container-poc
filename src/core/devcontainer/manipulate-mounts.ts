@@ -1,3 +1,4 @@
+import { assertNoMountReservedChars, assertNoNul } from '@/core/security/untrusted-input'
 import type { Mount } from '@/schemas/devcontainer-config'
 
 /**
@@ -14,20 +15,95 @@ const MANAGED_TARGETS = [
   '/workspace/.devcontainer',
 ] as const
 
+export interface ParsedStringMount {
+  type: 'bind' | 'volume' | 'tmpfs'
+  source?: string
+  target: string
+  readonly: boolean
+  /** All fields the user wrote, in insertion order. */
+  fields: ReadonlyMap<string, string | true>
+}
+
+const KNOWN_BARE_FLAGS = new Set(['readonly', 'ro', 'volume-nocopy'])
+
 /**
- * Returns the `target=...` value embedded in a mount string.
- * Returns undefined if the mount is an object (already typed) or if no
- * target= is found.
+ * Parses a Docker `--mount`-style CSV string into its canonical fields,
+ * throwing if the input is ambiguous or contains characters that would
+ * let an attacker re-shape the spec downstream.
+ *
+ * The string form is what a malicious container can drop into a
+ * workspace-side `devcontainer.json`. Docker's grammar has no escape
+ * mechanism, so a single repeated `target=` or an embedded NUL would
+ * silently change which host path gets mounted. Parsing strictly here
+ * means downstream consumers (extract/merge/audit) work from a single
+ * unambiguous interpretation.
  */
-function targetOfStringMount(mount: string): string | undefined {
-  // Match `target=...` up to the next comma or end of string.
-  const match = mount.match(/(?:^|,)target=([^,]+)/)
-  return match?.[1]
+export function parseStringMount(raw: string): ParsedStringMount {
+  assertNoNul('mount', raw)
+  const fields = new Map<string, string | true>()
+  for (const part of raw.split(',')) {
+    if (part === '') {
+      throw new Error(`mount '${raw}' has an empty field (consecutive or trailing comma)`)
+    }
+    const eq = part.indexOf('=')
+    const key = eq < 0 ? part : part.slice(0, eq)
+    const value: string | true = eq < 0 ? true : part.slice(eq + 1)
+    if (key === '') {
+      throw new Error(`mount '${raw}' has a field with empty key`)
+    }
+    if (fields.has(key)) {
+      throw new Error(`mount '${raw}' has duplicate key '${key}'`)
+    }
+    if (value === true && !KNOWN_BARE_FLAGS.has(key)) {
+      throw new Error(`mount '${raw}' field '${key}' is missing a value`)
+    }
+    fields.set(key, value)
+  }
+  const type = fields.get('type')
+  if (type !== 'bind' && type !== 'volume' && type !== 'tmpfs') {
+    throw new Error(`mount '${raw}' has invalid or missing type=`)
+  }
+  const target = fields.get('target') ?? fields.get('destination') ?? fields.get('dst')
+  if (typeof target !== 'string' || target === '') {
+    throw new Error(`mount '${raw}' is missing target=`)
+  }
+  const source = fields.get('source') ?? fields.get('src')
+  return {
+    type,
+    source: typeof source === 'string' ? source : undefined,
+    target,
+    readonly: fields.has('readonly') || fields.has('ro'),
+    fields,
+  }
+}
+
+export interface ResolvedMount {
+  type: 'bind' | 'volume' | 'tmpfs'
+  source?: string
+  target: string
+  readonly: boolean
+}
+
+/** Returns the parsed form of either string- or object-form mount. */
+function parseMount(mount: Mount): ResolvedMount {
+  if (typeof mount === 'string') {
+    const p = parseStringMount(mount)
+    return { type: p.type, source: p.source, target: p.target, readonly: p.readonly }
+  }
+  return {
+    type: mount.type === 'bind' || mount.type === 'volume' ? mount.type : 'volume',
+    source: mount.source,
+    target: mount.target,
+    readonly: false,
+  }
 }
 
 function targetOfMount(mount: Mount): string | undefined {
-  if (typeof mount === 'string') return targetOfStringMount(mount)
-  return mount.target
+  try {
+    return parseMount(mount).target
+  } catch {
+    return undefined
+  }
 }
 
 function isManagedTarget(target: string | undefined): boolean {
@@ -94,16 +170,8 @@ export interface AddBindMountArgs {
  */
 export function addBindMount(args: AddBindMountArgs): Mount[] {
   const { hostPath, containerPath } = args
-  for (const [name, value] of [
-    ['hostPath', hostPath],
-    ['containerPath', containerPath],
-  ] as const) {
-    if (value.includes(',') || value.includes('=') || value.includes('\0')) {
-      throw new Error(
-        `addBindMount: ${name} '${value}' contains a reserved character (',', '=' or NUL)`,
-      )
-    }
-  }
+  assertNoMountReservedChars('hostPath', hostPath)
+  assertNoMountReservedChars('containerPath', containerPath)
   const filtered = (args.mounts ?? []).filter((m) => targetOfMount(m) !== containerPath)
   const parts = [`source=${hostPath}`, `target=${containerPath}`, 'type=bind']
   if (args.readonly) parts.push('readonly')
@@ -112,4 +180,4 @@ export function addBindMount(args: AddBindMountArgs): Mount[] {
 }
 
 // Exposed for tests / debugging.
-export { isManagedTarget, MANAGED_TARGETS, targetOfMount }
+export { isManagedTarget, MANAGED_TARGETS, parseMount, targetOfMount }

@@ -1,8 +1,9 @@
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import { safeDestPath } from './safe-dest-path'
 
 describe('safeDestPath', () => {
-  const base = '/home/alice/.claude/projects'
+  const base = p('/home/alice/.claude/projects')
 
   it('accepts a normal path', () => {
     expect(safeDestPath(base, '-devcontainer-foo', 'sess.jsonl')).toBe(
