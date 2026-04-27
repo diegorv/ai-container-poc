@@ -1,0 +1,30 @@
+import { computeProjectId } from '@/core/project/compute-project-id'
+import type { CommandDeps } from '../deps'
+
+export interface LogsArgs {
+  cwd: string
+  /** Equivalent to `docker logs --follow`. */
+  follow?: boolean
+  /** Pass through to `docker logs --tail`. */
+  tail?: number
+}
+
+/**
+ * Streams (or snapshots) `docker logs` for the project's container.
+ * Stdio is inherited so `--follow` works correctly with Ctrl-C.
+ */
+export async function logs(args: LogsArgs, deps: CommandDeps): Promise<number> {
+  const { docker, shell } = deps
+  const project = computeProjectId(args.cwd)
+  const containers = await docker.listContainers({ label: project.containerLabel, all: true })
+  const container = containers[0]
+  if (!container) {
+    throw new Error(`No devcontainer found for ${args.cwd}`)
+  }
+  const dockerArgs = ['logs']
+  if (args.follow) dockerArgs.push('--follow')
+  if (args.tail !== undefined) dockerArgs.push('--tail', String(args.tail))
+  dockerArgs.push(container.id)
+  const r = await shell.execInteractive('docker', dockerArgs)
+  return r.exitCode
+}

@@ -31,6 +31,8 @@ describe('mydevc CLI (built bundle)', () => {
       'sync',
       'cp',
       'info',
+      'logs',
+      'ps',
       'clean',
       'self-install',
       'update',

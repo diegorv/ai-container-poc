@@ -16,7 +16,9 @@ import { down } from './commands/down'
 import { exec } from './commands/exec'
 import { HELP_TEXT } from './commands/help'
 import { info } from './commands/info'
+import { logs } from './commands/logs'
 import { mount } from './commands/mount'
+import { ps } from './commands/ps'
 import { rebuild } from './commands/rebuild'
 import { selfInstall } from './commands/self-install'
 import { shell } from './commands/shell'
@@ -98,6 +100,11 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
       return 0
     case 'info':
       await info(cmd, deps)
+      return 0
+    case 'logs':
+      return logs(cmd, deps)
+    case 'ps':
+      await ps({}, deps)
       return 0
     case 'clean':
       await clean(cmd, deps)
