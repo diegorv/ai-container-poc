@@ -1,4 +1,5 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
+import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
@@ -23,6 +24,13 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
           suggestion: `Remove '${check.offendingArg}' from runArgs in ${dcJson} and re-run.`,
         },
       )
+    }
+    const dangerous = findDangerousFields(parsed)
+    if (dangerous.length > 0) {
+      const f = dangerous[0]
+      throw new CliError(`Dangerous devcontainer.json field: ${f?.reason}`, {
+        suggestion: `Remove or correct '${f?.field}' in ${dcJson} and re-run.`,
+      })
     }
   }
 
