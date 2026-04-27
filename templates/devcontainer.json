@@ -68,5 +68,5 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
   "postCreateCommand": "bash /opt/mydevc/post-install-bootstrap.sh",
-  "postStartCommand": "bash /opt/mydevc/setup-firewall.sh"
+  "postStartCommand": "sudo /opt/mydevc/setup-firewall.sh"
 }

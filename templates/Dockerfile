@@ -108,15 +108,27 @@ COPY --chown=vscode:vscode .zshrc /home/vscode/.zshrc.custom
 # Append custom zshrc to the main one
 RUN echo 'source ~/.zshrc.custom' >> /home/vscode/.zshrc
 
-# Copy mydevc-init bundle, bootstrap script, and firewall setup. The
-# bundle is built by `pnpm build` and includes the dist/container-init/
-# entry along with the templates/ directory.
+# Copy mydevc-init bundle, bootstrap script, firewall setup, and chown
+# wrapper. The bundle is built by `pnpm build` and includes the
+# dist/container-init/ entry along with the templates/ directory.
 COPY --chown=vscode:vscode dist/container-init/index.js /opt/mydevc/container-init.js
 COPY --chown=vscode:vscode post-install-bootstrap.sh /opt/mydevc/post-install-bootstrap.sh
-COPY --chown=vscode:vscode setup-firewall.sh /opt/mydevc/setup-firewall.sh
+# These two scripts are root-owned and read-only for non-root users:
+# vscode invokes them via sudo, but cannot edit them.
+COPY setup-firewall.sh /opt/mydevc/setup-firewall.sh
+COPY chown-managed.sh /opt/mydevc/chown-managed.sh
+COPY sudoers.mydevc /etc/sudoers.d/00-mydevc
 
 # Expose mydevc-init on PATH so postCreateCommand can call it directly.
+# Replace Microsoft's broad `vscode ALL=(root) NOPASSWD:ALL` with our
+# narrow allowlist (sudoers.mydevc).
 USER root
 RUN ln -sf /opt/mydevc/container-init.js /usr/local/bin/mydevc-init && \
-  chmod +x /opt/mydevc/post-install-bootstrap.sh /opt/mydevc/container-init.js /opt/mydevc/setup-firewall.sh
+  chmod +x /opt/mydevc/post-install-bootstrap.sh /opt/mydevc/container-init.js && \
+  chmod 0500 /opt/mydevc/setup-firewall.sh /opt/mydevc/chown-managed.sh && \
+  chown root:root /opt/mydevc/setup-firewall.sh /opt/mydevc/chown-managed.sh && \
+  chmod 0440 /etc/sudoers.d/00-mydevc && \
+  chown root:root /etc/sudoers.d/00-mydevc && \
+  rm -f /etc/sudoers.d/vscode && \
+  visudo -cf /etc/sudoers.d/00-mydevc
 USER vscode

@@ -34,9 +34,9 @@ describe('directory-ownership step', () => {
     expect(result.ok).toBe(true)
     const cmds = c.shell.calls.filter((call) => call.command === 'sudo').map((s) => s.args)
     expect(cmds).toEqual([
-      ['chown', '-R', '1000:1000', '/home/vscode/.claude'],
-      ['chown', '-R', '1000:1000', '/commandhistory'],
-      ['chown', '-R', '1000:1000', '/home/vscode/.config/gh'],
+      ['/opt/mydevc/chown-managed.sh', '/home/vscode/.claude'],
+      ['/opt/mydevc/chown-managed.sh', '/commandhistory'],
+      ['/opt/mydevc/chown-managed.sh', '/home/vscode/.config/gh'],
     ])
   })
 

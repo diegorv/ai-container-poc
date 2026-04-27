@@ -15,7 +15,20 @@ export interface TemplateArgs {
   secure?: boolean
 }
 
-const TEMPLATE_FILES = ['Dockerfile', 'devcontainer.json', '.zshrc'] as const
+const TEMPLATE_FILES = [
+  'Dockerfile',
+  'devcontainer.json',
+  '.zshrc',
+  // Build-context files referenced by COPY directives in the Dockerfile.
+  // They have to live next to the Dockerfile inside the user's
+  // .devcontainer/ for `devcontainer up` (which uses .devcontainer/ as
+  // the build context) to find them.
+  'post-install-bootstrap.sh',
+  'setup-firewall.sh',
+  'chown-managed.sh',
+  'sudoers.mydevc',
+  '.dockerignore',
+] as const
 const FIREWALL_ALLOWLIST = 'firewall-allowlist.txt'
 
 /**

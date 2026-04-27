@@ -18,6 +18,11 @@ describe('dot command', () => {
       JSON.stringify({ name: 'sandbox', runArgs: ['--cap-add=NET_ADMIN'] }),
     )
     await fs.writeFile('/tpl/.zshrc', 'PS1=$\n')
+    await fs.writeFile('/tpl/post-install-bootstrap.sh', '#!/usr/bin/env bash\n')
+    await fs.writeFile('/tpl/setup-firewall.sh', '#!/usr/bin/env bash\n')
+    await fs.writeFile('/tpl/chown-managed.sh', '#!/usr/bin/env bash\n')
+    await fs.writeFile('/tpl/sudoers.mydevc', '# sudoers\n')
+    await fs.writeFile('/tpl/.dockerignore', '.git\n')
     await fs.mkdir('/proj', { recursive: true })
 
     const devcontainer = createFakeDevcontainer()
