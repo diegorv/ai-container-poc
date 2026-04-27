@@ -1,0 +1,198 @@
+# mydevc
+
+> A sandboxed development environment for running Claude Code with `bypassPermissions` safely enabled. TypeScript reimplementation of the [Trail of Bits](https://www.trailofbits.com/) `claude-code-devcontainer` fork, with hexagonal architecture (ports & adapters) and DI-friendly use cases.
+
+Two binaries:
+
+- **`mydevc`** — host CLI (template, up, shell, sync, destroy, …).
+- **`mydevc-init`** — runs inside the container as `postCreateCommand`.
+
+The original bash + Python + Docker implementation has been replaced by typed TypeScript end-to-end. Same surface area, same templates, no behavioural drift.
+
+## Why use this?
+
+Running Claude with `bypassPermissions` on your host is risky — it can execute any command without confirmation. This devcontainer provides **filesystem isolation** so you get unrestricted Claude without putting your host at risk.
+
+Designed for security audits, untrusted repositories, multi-repo engagements, and experimental work where you want Claude to modify code freely inside a disposable container.
+
+## Prerequisites
+
+- **Docker runtime** (one of):
+  - [Docker Desktop](https://docker.com/products/docker-desktop) (running)
+  - [OrbStack](https://orbstack.dev/)
+  - [Colima](https://github.com/abiosoft/colima): `brew install colima docker && colima start`
+- **devcontainer CLI**: `npm install -g @devcontainers/cli`
+- **Node.js 22+** for `mydevc` itself.
+
+## Install
+
+```bash
+git clone <this-repo> ~/.mydevc
+cd ~/.mydevc
+pnpm install
+pnpm build
+node dist/cli/index.js self-install   # symlinks mydevc into ~/.local/bin
+```
+
+After `self-install`, `mydevc` is available in any directory.
+
+## Quick start
+
+```bash
+git clone <untrusted-repo>
+cd untrusted-repo
+mydevc .         # template + up
+mydevc shell     # zsh inside the container
+```
+
+VS Code / Cursor: install the Dev Containers extension, run `mydevc template` (or copy `templates/` manually into `.devcontainer/`), then "Reopen in Container".
+
+## Headless auth (optional)
+
+```bash
+claude setup-token
+export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+mydevc rebuild
+```
+
+`mydevc-init`'s `claude:bypass` step seeds `~/.claude.json` so Claude starts without the onboarding wizard ([anthropics/claude-code#8938](https://github.com/anthropics/claude-code/issues/8938)).
+
+## Commands
+
+```
+mydevc .                      Install template + start container in current dir
+mydevc template [dir]         Copy devcontainer template into directory
+mydevc up [dir]               Start the devcontainer
+mydevc rebuild [dir]          Rebuild (preserves persistent volumes)
+mydevc down [dir]             Stop the devcontainer
+mydevc shell                  Open zsh in the running container
+mydevc exec <cmd>             Run a command in the running container
+mydevc upgrade                Run `claude update` inside the container
+mydevc mount <host> <ct>      Add a host→container bind mount
+mydevc sync [filter]          Sync Claude sessions from devcontainers to host
+mydevc cp <ct> <host>         Copy a path from container to host
+mydevc destroy [-f]           Remove container, volumes and images
+mydevc self-install           Symlink mydevc into ~/.local/bin
+mydevc update                 git pull this repo
+mydevc help                   Show this help
+```
+
+> Use `mydevc destroy` to clean up — `docker rm` directly leaves orphaned volumes and images that mydevc won't be able to find later.
+
+## Session sync for `/insights`
+
+Claude Code's `/insights` reads from `~/.claude/projects/` on the host. Sessions inside devcontainer volumes are invisible. `mydevc sync` copies session logs from every devcontainer (running or stopped) to the host, with the container-side key `-workspace` rewritten to `-devcontainer-<project>` so they don't collide with host keys.
+
+```bash
+mydevc sync               # all devcontainers
+mydevc sync crypto        # filter by project name
+mydevc sync --trusted     # skip the trust prompt
+```
+
+## File sharing
+
+```bash
+mydevc mount ~/drop /drop                # read-write
+mydevc mount ~/secrets /secrets --readonly
+```
+
+The mount is added to `devcontainer.json` and the container is recreated. Custom mounts are preserved across `mydevc template` updates.
+
+> Mount narrowly. Every mounted path is writable from the container unless `--readonly`, which undermines the isolation.
+
+## Security model
+
+| | |
+|---|---|
+| **Sandboxed** | Filesystem (host files inaccessible), processes, package installations |
+| **Not sandboxed** | Network (full outbound by default), git identity (`~/.gitconfig` mounted read-only), SSH agent (forwarded socket — keys stay on host), Docker socket (not mounted) |
+
+The container is the sandbox: `bypassPermissions` is auto-configured, so Claude runs commands without confirmation, but everything happens inside the container's filesystem.
+
+For network isolation, use iptables inside the container — see the [TrailOfBits upstream README](https://github.com/trailofbits/claude-code-devcontainer) for an allowlist example.
+
+`SYS_ADMIN` in `runArgs` is rejected by `mydevc up`/`rebuild` because it would defeat the read-only `.devcontainer/` mount that prevents a compromised process from injecting commands into `devcontainer.json`.
+
+## Architecture
+
+See [`Arch.md`](./Arch.md) and [`Conventions.md`](./Conventions.md) for the full rationale.
+
+```
+src/
+  cli/              # mydevc commands (presentation layer + composition root)
+    commands/       # one file per subcommand
+    parser.ts       # argv → discriminated union
+    index.ts        # builds real deps, dispatches
+  core/             # IO-free logic
+    project/        # compute-project-id
+    devcontainer/   # manipulate-mounts, check-no-sys-admin
+    sync/           # map-workspace-key
+  ports/            # filesystem, docker, devcontainer, shell, logger, prompt
+  adapters/         # real (node-fs, cli-docker, …) + fake (memory-fs, fake-docker, …)
+  schemas/          # zod schemas for devcontainer.json, env, project info
+  container-init/   # mydevc-init steps + runner + entry
+    steps/          # claude-bypass, claude-settings, tmux-config,
+                    # directory-ownership, git-config
+  lib/              # generic utilities (result, deep-merge, walk-fs, path-utils)
+  config.ts         # invariant constants
+templates/          # Dockerfile, devcontainer.json, .zshrc, .dockerignore,
+                    # post-install-bootstrap.sh
+tests/
+  integration/      # contract tests (real adapter ↔ memory fake)
+  e2e/              # built-binary smoke tests
+```
+
+Pure core, IO at the edges, fakes in production code (no `vi.mock`). Adding a command means adding a file under `src/cli/commands/`.
+
+## Scripts
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm lint                 # biome check --write
+pnpm test                 # vitest
+pnpm test:unit            # src/**
+pnpm test:integration     # tests/integration
+pnpm test:e2e             # tests/e2e (builds dist/ if missing)
+pnpm build                # tsup → dist/
+pnpm check                # biome + tsc + vitest run
+```
+
+## Container details
+
+| Component | Details |
+|---|---|
+| Base | Ubuntu 24.04, Node.js 22, Python 3.13 (via uv), zsh + Oh My Zsh |
+| User | `vscode` (passwordless sudo), `WORKDIR=/workspace` |
+| Tools | `rg`, `fd`, `tmux`, `fzf`, `delta`, `iptables`, `ipset`, `bubblewrap`, `ast-grep` |
+| Persistent volumes | `/commandhistory`, `/home/vscode/.claude`, `/home/vscode/.config/gh` |
+| Read-only host mounts | `~/.gitconfig`, `.devcontainer/`, `.git/config`, `.git/hooks` |
+| Auto-configured | `bypassPermissions=true`, `~/.tmux.conf`, `~/.gitconfig.local` (with delta), Anthropic + Trail of Bits skills |
+
+Persistent volumes survive `mydevc rebuild` so your shell history, Claude config, and `gh` login persist between rebuilds. `mydevc destroy` removes them all.
+
+## Troubleshooting
+
+### `devcontainer` CLI not found
+
+```bash
+npm install -g @devcontainers/cli
+```
+
+### Container won't start
+
+1. Check Docker is running.
+2. `mydevc rebuild`
+3. `docker logs $(docker ps -lq)`
+
+### gh CLI auth not persisting
+
+```bash
+sudo chown -R $(id -u):$(id -g) ~/.config/gh
+```
+
+This is what `mydevc-init`'s `fs:ownership` step does automatically — but only if it runs before you try to authenticate.
+
+## Credit
+
+Built on the work of the original Trail of Bits team: <https://github.com/trailofbits/claude-code-devcontainer>. Refer to the upstream repository for canonical bash + Python implementation.

@@ -1,0 +1,28 @@
+import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
+import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
+import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
+import type { CommandDeps } from '../deps'
+
+export interface RebuildArgs {
+  cwd: string
+}
+
+/** Ports `cmd_rebuild` from install.sh — `up --remove-existing-container`. */
+export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<void> {
+  const { devcontainer, fs, logger } = deps
+  const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
+
+  if (await fs.exists(dcJson)) {
+    const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
+    const check = checkNoSysAdmin(parsed)
+    if (!check.ok) {
+      throw new Error(
+        `SYS_ADMIN detected in runArgs (${check.offendingArg}). This defeats the read-only .devcontainer mount; refusing to rebuild.`,
+      )
+    }
+  }
+
+  logger.info(`Rebuilding devcontainer in ${args.cwd}…`)
+  await devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true })
+  logger.success('Devcontainer rebuilt.')
+}
