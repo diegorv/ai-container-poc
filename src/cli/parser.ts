@@ -41,6 +41,43 @@ export interface ParseContext {
   cwd: string
 }
 
+export type Verbosity = 'quiet' | 'normal' | 'verbose'
+
+export interface GlobalFlags {
+  verbosity: Verbosity
+  argv: string[]
+}
+
+/**
+ * Strips global flags (`--verbose`, `-v`, `--quiet`, `-q`) from `argv`
+ * before command parsing so any command can be silenced or made chatty
+ * without per-command boilerplate. `--verbose` wins over `--quiet` if
+ * both are present.
+ */
+export function parseGlobalFlags(argv: readonly string[]): GlobalFlags {
+  const out = [...argv]
+  let verbose = false
+  let quiet = false
+  for (const flag of ['--verbose', '-v']) {
+    const i = out.indexOf(flag)
+    if (i !== -1) {
+      out.splice(i, 1)
+      verbose = true
+    }
+  }
+  for (const flag of ['--quiet', '-q']) {
+    const i = out.indexOf(flag)
+    if (i !== -1) {
+      out.splice(i, 1)
+      quiet = true
+    }
+  }
+  return {
+    argv: out,
+    verbosity: verbose ? 'verbose' : quiet ? 'quiet' : 'normal',
+  }
+}
+
 function take(args: string[]): string | undefined {
   return args.shift()
 }

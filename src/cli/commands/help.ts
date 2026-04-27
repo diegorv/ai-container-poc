@@ -3,7 +3,7 @@
  * dispatcher can write it directly to stdout and tests can assert on
  * its presence.
  */
-export const HELP_TEXT = `Usage: mydevc <command> [options]
+export const HELP_TEXT = `Usage: mydevc [-v|--verbose | -q|--quiet] <command> [options]
 
 Commands:
     .                      Install template + start container in current dir

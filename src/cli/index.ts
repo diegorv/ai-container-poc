@@ -31,7 +31,7 @@ import { update } from './commands/update'
 import { upgrade } from './commands/upgrade'
 import { validate } from './commands/validate'
 import type { CommandDeps } from './deps'
-import { type ParsedCommand, parseArgs } from './parser'
+import { type ParsedCommand, type Verbosity, parseArgs, parseGlobalFlags } from './parser'
 
 function resolveTemplatesDir(): string {
   // dist/cli/index.js → templates/ at repo root in production.
@@ -40,16 +40,17 @@ function resolveTemplatesDir(): string {
   return resolve(here, '..', '..', 'templates')
 }
 
-function buildDeps(): CommandDeps {
+function buildDeps(verbosity: Verbosity): CommandDeps {
   const env = EnvSchema.parse(process.env)
   const docker = createCliDocker(execaShell)
   const devcontainer = createCliDevcontainer(execaShell)
+  const level = verbosity === 'verbose' ? 'debug' : verbosity === 'quiet' ? 'error' : 'info'
   return {
     fs: nodeFs,
     docker,
     devcontainer,
     shell: execaShell,
-    logger: createPrettyLogger(),
+    logger: createPrettyLogger({ level }),
     prompt: ttyPrompt,
     templatesDir: resolveTemplatesDir(),
     env,
@@ -132,8 +133,9 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
 }
 
 async function main(): Promise<void> {
-  const cmd = parseArgs(process.argv.slice(2), { cwd: process.cwd() })
-  const deps = buildDeps()
+  const { argv, verbosity } = parseGlobalFlags(process.argv.slice(2))
+  const cmd = parseArgs(argv, { cwd: process.cwd() })
+  const deps = buildDeps(verbosity)
   const code = await dispatch(cmd, deps)
   if (code !== 0) process.exit(code)
 }
