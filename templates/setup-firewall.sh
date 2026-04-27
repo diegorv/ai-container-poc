@@ -1,17 +1,37 @@
 #!/usr/bin/env bash
-# Activates an iptables OUTPUT allowlist when
-# /workspace/.devcontainer/firewall-allowlist.txt is present. Idempotent:
-# flushes existing OUTPUT/INPUT rules before re-applying.
+# Activates an iptables OUTPUT allowlist. Idempotent: flushes existing
+# OUTPUT/INPUT rules before re-applying.
 #
-# Invoked by the devcontainer's `postStartCommand` so the firewall is
-# (re)applied on every container start, not just the first one.
+# Invoked twice:
+#   1. The devcontainer's `postStartCommand` runs this on every
+#      container start with no arguments, so a fresh container with
+#      a workspace-side allowlist still gets some firewall protection.
+#   2. The host's `mydevc up` / `rebuild` re-runs it after host-side
+#      validation, passing /etc/mydevc/firewall-allowlist.txt — that
+#      file is root-owned and was placed there by the host CLI from a
+#      sanitized snapshot (so the contents went through TS validation
+#      and are not influenceable from inside the container).
+#
+# Allowlist resolution (first match wins):
+#   - explicit $1                    (host-driven, validated)
+#   - /etc/mydevc/firewall-allowlist.txt  (host-driven, validated)
+#   - /workspace/.devcontainer/firewall-allowlist.txt  (legacy fallback)
 #
 # Requires NET_ADMIN (set in templates/devcontainer.json) and passwordless
 # sudo (vscode user in the Microsoft devcontainers base).
 
 set -euo pipefail
 
-ALLOWLIST="${1:-/workspace/.devcontainer/firewall-allowlist.txt}"
+VALIDATED_ALLOWLIST="/etc/mydevc/firewall-allowlist.txt"
+LEGACY_ALLOWLIST="/workspace/.devcontainer/firewall-allowlist.txt"
+
+if [[ -n "${1:-}" ]]; then
+  ALLOWLIST="$1"
+elif [[ -f "$VALIDATED_ALLOWLIST" ]]; then
+  ALLOWLIST="$VALIDATED_ALLOWLIST"
+else
+  ALLOWLIST="$LEGACY_ALLOWLIST"
+fi
 
 if [[ ! -f "$ALLOWLIST" ]]; then
   exit 0
@@ -76,12 +96,20 @@ fi
 
 count=0
 ip6_count=0
+# Defence in depth: even when the host pre-validates, refuse to pass
+# anything that isn't a hostname / IP literal / CIDR to iptables. The
+# class is intentionally narrow (no spaces, no shell metacharacters).
+SAFE_TOKEN_RE='^[A-Za-z0-9_.:/-]+$'
 while IFS= read -r raw; do
   # Strip comments and surrounding whitespace.
   line="${raw%%#*}"
   line="${line#"${line%%[![:space:]]*}"}"
   line="${line%"${line##*[![:space:]]}"}"
   [[ -z "$line" ]] && continue
+  if ! [[ "$line" =~ $SAFE_TOKEN_RE ]]; then
+    echo "[mydevc-firewall] Refusing line with disallowed characters: $line" >&2
+    exit 2
+  fi
   if iptables -A OUTPUT -d "$line" -j ACCEPT 2>/dev/null; then
     count=$((count + 1))
   else

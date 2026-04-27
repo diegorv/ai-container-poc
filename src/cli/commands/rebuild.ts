@@ -1,7 +1,9 @@
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
+import { findFirewallWindowWarnings } from '@/core/devcontainer/find-firewall-window-warnings'
 import { findUnknownTopLevelFields } from '@/core/devcontainer/find-unknown-fields'
+import { workspaceAllowlistPath } from '@/core/devcontainer/firewall-snapshot'
 import { devcontainerJsonOf } from '@/core/paths'
 import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
@@ -42,11 +44,16 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
         `devcontainer.json contains fields the audit does not understand: ${unknown.join(', ')}. They are passed to the runtime as-is.`,
       )
     }
+    if (await fs.exists(workspaceAllowlistPath(cwd))) {
+      for (const w of findFirewallWindowWarnings(parsed)) {
+        logger.warn(`Pre-firewall lifecycle: ${w.reason}`)
+      }
+    }
   }
 
   await logger.withSpinner(`Rebuilding devcontainer in ${cwd}`, () =>
     devcontainer.up({ workspaceFolder: cwd, removeExistingContainer: true }),
   )
 
-  await enforceFirewall(cwd, { docker, fs, logger })
+  await enforceFirewall(cwd, { docker, fs, logger, home: env.HOME })
 }

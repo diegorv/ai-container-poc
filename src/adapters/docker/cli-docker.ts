@@ -1,40 +1,25 @@
 import { untrust, untrustRecord } from '@/core/security/brand'
 import { CliError } from '@/lib/cli-error'
-import type { ContainerInfo, Docker, DockerExecResult, VolumeInfo } from '@/ports/docker'
+import type { ContainerInfo, Docker, DockerExecResult } from '@/ports/docker'
 import type { Shell } from '@/ports/shell'
+import {
+  type DockerInspectContainer,
+  DockerInspectContainerArraySchema,
+  type DockerInspectVolume,
+  DockerInspectVolumeArraySchema,
+} from '@/schemas/docker-inspect'
 
-interface DockerInspectMount {
-  Type?: string
-  Name?: string
-  Source?: string
-  Destination?: string
+function parseInspectContainersJson(stdout: string): DockerInspectContainer[] {
+  // The daemon's contract is "always an array" — but a corrupt or
+  // unexpected response should fail with a useful message at the
+  // boundary, not as `undefined.Id` at a call site.
+  const raw = JSON.parse(stdout)
+  return DockerInspectContainerArraySchema.parse(raw)
 }
 
-interface DockerInspectContainer {
-  Id: string
-  Name?: string
-  Config?: {
-    Image?: string
-    Labels?: Record<string, string> | null
-    Env?: string[] | null
-    User?: string
-  }
-  Image?: string
-  State?: { Status?: string }
-  Mounts?: DockerInspectMount[]
-}
-
-interface DockerInspectVolume {
-  Name: string
-  Labels?: Record<string, string> | null
-}
-
-function parseJsonLines<T>(stdout: string): T[] {
-  return stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as T)
+function parseInspectVolumesJson(stdout: string): DockerInspectVolume[] {
+  const raw = JSON.parse(stdout)
+  return DockerInspectVolumeArraySchema.parse(raw)
 }
 
 function inspectToInfo(c: DockerInspectContainer): ContainerInfo {
@@ -59,15 +44,7 @@ function parseInspectContainer(json: unknown): ContainerInfo {
   if (!Array.isArray(json) || json.length === 0) {
     throw new Error('docker inspect returned no items')
   }
-  return inspectToInfo(json[0] as DockerInspectContainer)
-}
-
-function parseInspectVolume(json: unknown): VolumeInfo {
-  if (!Array.isArray(json) || json.length === 0) {
-    throw new Error('docker volume inspect returned no items')
-  }
-  const v = json[0] as DockerInspectVolume
-  return { name: v.Name, labels: v.Labels ?? {} }
+  return inspectToInfo(DockerInspectContainerArraySchema.parse(json)[0] as DockerInspectContainer)
 }
 
 function check(result: DockerExecResult, action: string): void {
@@ -108,8 +85,7 @@ export function createCliDocker(shell: Shell): Docker {
       if (ids.length === 0) return []
       const inspect = await dockerExec(['inspect', ...ids])
       check(inspect, 'inspect')
-      const parsed = JSON.parse(inspect.stdout) as DockerInspectContainer[]
-      return parsed.map(inspectToInfo)
+      return parseInspectContainersJson(inspect.stdout).map(inspectToInfo)
     },
 
     async inspectContainer(idOrName) {
@@ -145,8 +121,10 @@ export function createCliDocker(shell: Shell): Docker {
       if (names.length === 0) return []
       const inspect = await dockerExec(['volume', 'inspect', ...names])
       check(inspect, 'volume inspect')
-      const parsed = JSON.parse(inspect.stdout) as DockerInspectVolume[]
-      return parsed.map((v) => ({ name: v.Name, labels: v.Labels ?? {} }))
+      return parseInspectVolumesJson(inspect.stdout).map((v) => ({
+        name: v.Name,
+        labels: v.Labels ?? {},
+      }))
     },
 
     async removeVolume(name, options) {
@@ -192,4 +170,3 @@ export function createCliDocker(shell: Shell): Docker {
 
 // Re-exported for tests / introspection.
 export type { DockerInspectContainer, DockerInspectVolume }
-export { parseInspectContainer, parseInspectVolume, parseJsonLines }
