@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
-    exclude: ['node_modules', 'dist', 'trial-of-bits-container-fork'],
+    exclude: ['node_modules', 'dist'],
     environment: 'node',
     passWithNoTests: true,
   },
