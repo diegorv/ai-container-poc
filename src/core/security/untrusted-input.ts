@@ -1,22 +1,31 @@
 /**
- * Single source of truth for "what does a *safe* string from the
- * container look like". Every boundary point that consumes
- * container-controlled data (env vars, labels, devcontainer.json fields,
- * filenames extracted via `docker cp`) should validate through one of
- * these helpers instead of growing its own regex. Centralising the
- * patterns means a security review only has to read this file to know
- * the full set of rules, and adding a new rule (e.g. forbidding a new
- * unicode class) is a one-line edit instead of a hunt across modules.
+ * Validators that bridge `Untrusted<S>` (opaque, from a non-operator
+ * source) to capability brands (`SafeFilename`, `PosixUserName`, …).
+ * These are the *only* legitimate producers of capabilities — every
+ * `as`-cast that brands a value lives behind `brandAs` in `brand.ts`.
  *
- * Conventions:
- * - `assert*` throws a `UntrustedInputError` on failure — use at internal
- *   boundaries where the input was already pre-screened.
- * - `is*` returns a boolean — use at the host/container seam where you
- *   want to skip the offending entry with a warning instead of aborting.
- * - All assertions reject NUL bytes unconditionally; null is a classic
- *   path-truncation vector and no legitimate field should ever contain
- *   one.
+ * Two flavours of API:
+ *
+ * - `as*(input)` — returns the capability or `undefined`. Use when
+ *   the caller wants to skip the offending entry with a warning.
+ * - `assert*(field, input)` — throws `UntrustedInputError`. Use when
+ *   continuing past invalid input would be unsafe (mount strings,
+ *   command-grammar fields).
+ *
+ * Both flavours accept either an `Untrusted<S>` (the common case at the
+ * boundary) or a raw string (used inside `core/security/` itself, e.g.
+ * `parseStringMount` validating individual CSV fields). The runtime
+ * behaviour is the same; the type is what forces the caller to decide.
  */
+
+import {
+  type HomeOrRootAbsolutePath,
+  type PosixUserName,
+  type SafeFilename,
+  type SafeMountField,
+  type Untrusted,
+  brandAs,
+} from './brand'
 
 export class UntrustedInputError extends Error {
   constructor(
@@ -44,40 +53,62 @@ const SAFE_FILENAME = /^[A-Za-z0-9_.-]{1,128}$/
 const HOME_OR_ROOT_ABSOLUTE = /^\/(home\/[A-Za-z0-9_.-]+|root)(\/[A-Za-z0-9_.-]+)*$/
 
 /**
- * Characters that are reserved by Docker's `--mount` / `--volume` CSV
- * grammar. Any of these inside a single field would let an attacker
- * inject extra fields that downstream parsers would honour.
+ * Characters reserved by Docker's `--mount` / `--volume` CSV grammar.
+ * Inside a single field, any of these would let an attacker inject
+ * extra fields that downstream parsers honour as their own.
  */
 export const MOUNT_RESERVED_CHARS = [',', '=', '\0'] as const
 
-export function isSafeFilename(value: string): boolean {
-  if (value === '' || value === '.' || value === '..') return false
-  if (value.includes('\0')) return false
-  return SAFE_FILENAME.test(value)
+/** Returns the underlying string of either an `Untrusted<>` or a raw string. */
+function rawOf(input: Untrusted | string): string {
+  return typeof input === 'string' ? input : input.unsafe()
 }
 
-export function isPosixUserName(value: string): boolean {
-  if (value === '' || value === '.' || value === '..') return false
-  if (value.includes('\0') || value.includes('..')) return false
-  return POSIX_USER_NAME.test(value)
+// ─────────────────────────────────────────────────────────────────────
+//  Predicates (use when you want to skip with a warning)
+// ─────────────────────────────────────────────────────────────────────
+
+export function asSafeFilename(input: Untrusted | string): SafeFilename | undefined {
+  const value = rawOf(input)
+  if (value === '' || value === '.' || value === '..') return undefined
+  if (value.includes('\0')) return undefined
+  if (!SAFE_FILENAME.test(value)) return undefined
+  return brandAs<'safe-filename'>(value)
 }
 
-export function isHomeOrRootAbsolutePath(value: string): boolean {
-  if (value === '' || value.includes('\0') || value.includes('..')) return false
-  return HOME_OR_ROOT_ABSOLUTE.test(value)
+export function asPosixUserName(input: Untrusted | string): PosixUserName | undefined {
+  const value = rawOf(input)
+  if (value === '' || value === '.' || value === '..') return undefined
+  if (value.includes('\0') || value.includes('..')) return undefined
+  if (!POSIX_USER_NAME.test(value)) return undefined
+  return brandAs<'posix-username'>(value)
 }
 
-export function assertNoNul(field: string, value: string): void {
+export function asHomeOrRootAbsolutePath(
+  input: Untrusted | string,
+): HomeOrRootAbsolutePath | undefined {
+  const value = rawOf(input)
+  if (value === '' || value.includes('\0') || value.includes('..')) return undefined
+  if (!HOME_OR_ROOT_ABSOLUTE.test(value)) return undefined
+  return brandAs<'home-or-root-abs'>(value)
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Assertions (use when continuing past invalid input would be unsafe)
+// ─────────────────────────────────────────────────────────────────────
+
+export function assertNoNul(field: string, input: Untrusted | string): void {
+  const value = rawOf(input)
   if (value.includes('\0')) {
     throw new UntrustedInputError(field, value, 'must not contain NUL bytes')
   }
 }
 
-/**
- * Throws when `value` contains a character that would let it inject
- * extra fields into a Docker `--mount` / `--volume` CSV grammar.
- */
-export function assertNoMountReservedChars(field: string, value: string): void {
+export function assertNoMountReservedChars(
+  field: string,
+  input: Untrusted | string,
+): SafeMountField {
+  const value = rawOf(input)
   for (const ch of MOUNT_RESERVED_CHARS) {
     if (value.includes(ch)) {
       const display = ch === '\0' ? 'NUL' : `'${ch}'`
@@ -88,16 +119,21 @@ export function assertNoMountReservedChars(field: string, value: string): void {
       )
     }
   }
+  return brandAs<'safe-mount-field'>(value)
 }
 
-export function assertSafeFilename(field: string, value: string): void {
-  if (!isSafeFilename(value)) {
-    throw new UntrustedInputError(field, value, `must match ${SAFE_FILENAME}`)
+export function assertSafeFilename(field: string, input: Untrusted | string): SafeFilename {
+  const result = asSafeFilename(input)
+  if (!result) {
+    throw new UntrustedInputError(field, rawOf(input), `must match ${SAFE_FILENAME}`)
   }
+  return result
 }
 
-export function assertPosixUserName(field: string, value: string): void {
-  if (!isPosixUserName(value)) {
-    throw new UntrustedInputError(field, value, 'must be a POSIX-style user name')
+export function assertPosixUserName(field: string, input: Untrusted | string): PosixUserName {
+  const result = asPosixUserName(input)
+  if (!result) {
+    throw new UntrustedInputError(field, rawOf(input), 'must be a POSIX-style user name')
   }
+  return result
 }

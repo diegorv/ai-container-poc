@@ -1,103 +1,97 @@
 import { describe, expect, it } from 'vitest'
+import { untrust } from './brand'
 import {
   UntrustedInputError,
+  asHomeOrRootAbsolutePath,
+  asPosixUserName,
+  asSafeFilename,
   assertNoMountReservedChars,
   assertNoNul,
   assertPosixUserName,
   assertSafeFilename,
-  isHomeOrRootAbsolutePath,
-  isPosixUserName,
-  isSafeFilename,
 } from './untrusted-input'
 
-describe('isSafeFilename', () => {
-  it('accepts POSIX-friendly names', () => {
-    expect(isSafeFilename('crypto')).toBe(true)
-    expect(isSafeFilename('my-project_2.0')).toBe(true)
+const u = (v: string) => untrust(v, 'test')
+
+describe('asSafeFilename', () => {
+  it('accepts POSIX-friendly names and returns the branded value', () => {
+    const out = asSafeFilename(u('crypto'))
+    expect(out).toBe('crypto')
   })
 
-  it('rejects empty, dot and dotdot', () => {
-    expect(isSafeFilename('')).toBe(false)
-    expect(isSafeFilename('.')).toBe(false)
-    expect(isSafeFilename('..')).toBe(false)
+  it('rejects empty, dot, dotdot, NUL, separators, oversized', () => {
+    expect(asSafeFilename(u(''))).toBeUndefined()
+    expect(asSafeFilename(u('.'))).toBeUndefined()
+    expect(asSafeFilename(u('..'))).toBeUndefined()
+    expect(asSafeFilename(u('a\0b'))).toBeUndefined()
+    expect(asSafeFilename(u('a/b'))).toBeUndefined()
+    expect(asSafeFilename(u('a b'))).toBeUndefined()
+    expect(asSafeFilename(u('a'.repeat(129)))).toBeUndefined()
   })
 
-  it('rejects NUL and path separators', () => {
-    expect(isSafeFilename('a\0b')).toBe(false)
-    expect(isSafeFilename('a/b')).toBe(false)
-    expect(isSafeFilename('a b')).toBe(false)
-  })
-
-  it('rejects names longer than 128 chars', () => {
-    expect(isSafeFilename('a'.repeat(128))).toBe(true)
-    expect(isSafeFilename('a'.repeat(129))).toBe(false)
-  })
-})
-
-describe('isPosixUserName', () => {
-  it('accepts typical POSIX usernames', () => {
-    expect(isPosixUserName('vscode')).toBe(true)
-    expect(isPosixUserName('_svc')).toBe(true)
-  })
-
-  it('rejects path separators, .., and NUL', () => {
-    expect(isPosixUserName('foo/bar')).toBe(false)
-    expect(isPosixUserName('..')).toBe(false)
-    expect(isPosixUserName('foo\0')).toBe(false)
-    expect(isPosixUserName('foo/../etc')).toBe(false)
-  })
-
-  it('rejects names starting with a digit (POSIX restriction)', () => {
-    expect(isPosixUserName('1foo')).toBe(false)
+  it('also accepts raw strings (for use inside core/security itself)', () => {
+    expect(asSafeFilename('crypto')).toBe('crypto')
   })
 })
 
-describe('isHomeOrRootAbsolutePath', () => {
-  it('accepts /home/<user>/...', () => {
-    expect(isHomeOrRootAbsolutePath('/home/vscode/.claude')).toBe(true)
+describe('asPosixUserName', () => {
+  it('accepts typical usernames', () => {
+    expect(asPosixUserName(u('vscode'))).toBe('vscode')
+    expect(asPosixUserName(u('_svc'))).toBe('_svc')
   })
 
-  it('accepts /root and subpaths', () => {
-    expect(isHomeOrRootAbsolutePath('/root')).toBe(true)
-    expect(isHomeOrRootAbsolutePath('/root/.claude')).toBe(true)
+  it('rejects path separators, .., NUL, leading digit', () => {
+    expect(asPosixUserName(u('foo/bar'))).toBeUndefined()
+    expect(asPosixUserName(u('..'))).toBeUndefined()
+    expect(asPosixUserName(u('foo\0'))).toBeUndefined()
+    expect(asPosixUserName(u('foo/../etc'))).toBeUndefined()
+    expect(asPosixUserName(u('1foo'))).toBeUndefined()
+  })
+})
+
+describe('asHomeOrRootAbsolutePath', () => {
+  it('accepts /home/<user>/... and /root/...', () => {
+    expect(asHomeOrRootAbsolutePath(u('/home/vscode/.claude'))).toBe('/home/vscode/.claude')
+    expect(asHomeOrRootAbsolutePath(u('/root/.claude'))).toBe('/root/.claude')
   })
 
   it('rejects paths with .. or NUL', () => {
-    expect(isHomeOrRootAbsolutePath('/home/vscode/../../etc')).toBe(false)
-    expect(isHomeOrRootAbsolutePath('/root/foo\0bar')).toBe(false)
+    expect(asHomeOrRootAbsolutePath(u('/home/vscode/../../etc'))).toBeUndefined()
+    expect(asHomeOrRootAbsolutePath(u('/root/foo\0bar'))).toBeUndefined()
   })
 
   it('rejects paths outside /home or /root', () => {
-    expect(isHomeOrRootAbsolutePath('/etc')).toBe(false)
-    expect(isHomeOrRootAbsolutePath('/var/run')).toBe(false)
+    expect(asHomeOrRootAbsolutePath(u('/etc'))).toBeUndefined()
+    expect(asHomeOrRootAbsolutePath(u('/var/run'))).toBeUndefined()
   })
 })
 
 describe('assertNoNul', () => {
   it('passes when there is no NUL', () => {
-    expect(() => assertNoNul('field', 'safe')).not.toThrow()
+    expect(() => assertNoNul('field', u('safe'))).not.toThrow()
   })
 
   it('throws UntrustedInputError on NUL', () => {
-    expect(() => assertNoNul('field', 'a\0b')).toThrow(UntrustedInputError)
+    expect(() => assertNoNul('field', u('a\0b'))).toThrow(UntrustedInputError)
   })
 })
 
 describe('assertNoMountReservedChars', () => {
-  it('rejects comma, equals, and NUL', () => {
-    expect(() => assertNoMountReservedChars('hostPath', 'a,b')).toThrow(/CSV-reserved/)
-    expect(() => assertNoMountReservedChars('hostPath', 'a=b')).toThrow(/CSV-reserved/)
-    expect(() => assertNoMountReservedChars('hostPath', 'a\0b')).toThrow(/CSV-reserved/)
+  it('rejects comma, equals, NUL', () => {
+    expect(() => assertNoMountReservedChars('hostPath', u('a,b'))).toThrow(/CSV-reserved/)
+    expect(() => assertNoMountReservedChars('hostPath', u('a=b'))).toThrow(/CSV-reserved/)
+    expect(() => assertNoMountReservedChars('hostPath', u('a\0b'))).toThrow(/CSV-reserved/)
   })
 
-  it('passes for benign paths', () => {
-    expect(() => assertNoMountReservedChars('hostPath', '/home/x/data')).not.toThrow()
+  it('returns a SafeMountField for benign paths', () => {
+    const out = assertNoMountReservedChars('hostPath', u('/home/x/data'))
+    expect(out).toBe('/home/x/data')
   })
 })
 
-describe('assertSafeFilename / assertPosixUserName', () => {
-  it('throws with field name and value in the message', () => {
-    expect(() => assertSafeFilename('projectName', '../evil')).toThrow(/projectName/)
-    expect(() => assertPosixUserName('user', 'foo/bar')).toThrow(/user/)
+describe('assert* throwing variants', () => {
+  it('include the field name and value in the message', () => {
+    expect(() => assertSafeFilename('projectName', u('../evil'))).toThrow(/projectName/)
+    expect(() => assertPosixUserName('user', u('foo/bar'))).toThrow(/user/)
   })
 })

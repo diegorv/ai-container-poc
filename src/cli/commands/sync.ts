@@ -1,6 +1,6 @@
 import { dirname } from 'node:path'
 import { CONTAINER_LABEL_KEY } from '@/config'
-import { isSafeFilename } from '@/core/security/untrusted-input'
+import { asSafeFilename } from '@/core/security/untrusted-input'
 import { mapWorkspaceKey, resolveClaudeProjectsDir } from '@/core/sync/map-workspace-key'
 import { safeDestPath } from '@/core/sync/safe-dest-path'
 import { walkFiles } from '@/lib/walk-fs'
@@ -30,16 +30,20 @@ function matchesFilter(name: string, filter: string | undefined): boolean {
 /**
  * Project names are stitched into `-devcontainer-<name>` keys that
  * become directories under `~/.claude/projects` on the host. The label
- * the name comes from is set by the devcontainer CLI (host-trusted) but
- * a malicious devcontainer.json could re-issue it via `runArgs --label`,
- * so we delegate to `isSafeFilename` (POSIX-friendly chars, length cap,
- * no `.`/`..`/NUL). `safeDestPath` is the second layer of defence at
- * the actual filesystem write.
+ * is `Untrusted<>` because a malicious devcontainer.json could re-issue
+ * it via `runArgs --label`. `asSafeFilename` returns a `SafeFilename`
+ * brand or `undefined`; `safeDestPath` is the second layer of defence
+ * at the actual filesystem write.
  */
 function projectNameOf(info: ContainerInfo): string | undefined {
-  const folder = info.labels[CONTAINER_LABEL_KEY] ?? ''
+  const folder = info.labels[CONTAINER_LABEL_KEY]?.unsafe() ?? ''
   const candidate = folder.split('/').pop() ?? folder
-  return isSafeFilename(candidate) ? candidate : undefined
+  return asSafeFilename(candidate)
+}
+
+function folderOf(info: ContainerInfo): string {
+  // Display only — `.unsafe()` is the audit point.
+  return info.labels[CONTAINER_LABEL_KEY]?.unsafe() ?? ''
 }
 
 async function copyIfNewer(fs: FileSystem, source: string, dest: string): Promise<boolean> {
@@ -160,12 +164,12 @@ export async function sync(args: SyncArgs, deps: CommandDeps): Promise<void> {
     const name = projectNameOf(info)
     if (name === undefined) {
       logger.warn(
-        `Skipping container ${info.id.slice(0, 12)}: project label '${info.labels[CONTAINER_LABEL_KEY] ?? ''}' is not a safe filename.`,
+        `Skipping container ${info.id.slice(0, 12)}: project label '${folderOf(info)}' is not a safe filename.`,
       )
       continue
     }
     if (!matchesFilter(name, args.filter)) continue
-    matches.push({ info, projectName: name, folder: info.labels[CONTAINER_LABEL_KEY] ?? '' })
+    matches.push({ info, projectName: name, folder: folderOf(info) })
   }
 
   if (matches.length === 0) {

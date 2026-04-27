@@ -40,14 +40,40 @@ tests/e2e/          — built-binary smoke tests
 
 ## Untrusted-input rules (security boundary)
 
-The container is untrusted. Anything that crosses host ↔ container — env vars, container labels, `Config.User`, files in the workspace bind mount (including `.devcontainer/devcontainer.json`), output of `docker inspect`, filenames extracted via `docker cp` — must pass through `src/core/security/untrusted-input.ts` before being used as a path component, filename, command argument, or mount field. Don't roll a new regex inline; extend the central module.
+This is an AI container — the container is fully untrusted and must not be able to influence the host through accidentally-unvalidated inputs. The architecture is described in `Arch.md` § "Security architecture"; the operational rules below are what you actually do day-to-day.
 
-When you add a new untrusted source:
-1. Pick the matching helper (`isSafeFilename`, `isPosixUserName`, `isHomeOrRootAbsolutePath`, `assertNoNul`, `assertNoMountReservedChars`). If none fits, add a new one **in `untrusted-input.ts`** with a doc comment explaining the threat.
-2. Decide your failure mode: `is*` returning false → skip with a `logger.warn`; `assert*` throwing → abort the whole operation. Use the latter only when continuing would be unsafe.
-3. Add a unit test in `untrusted-input.test.ts` covering the rejection cases.
+**The compiler enforces this, not docs.** Values from non-operator sources are typed `Untrusted<S>` and are not assignable to `string`. Capability brands (`SafeFilename`, `PosixUserName`, `HomeOrRootAbsolutePath`) are the only legitimate output of validators. If you forget to validate, the code does not compile.
 
-Coverage today is *deliberately* not "validate every string in every schema". Zod schemas like `DevcontainerConfigSchema` accept open-ended values for fields that are passed inertly to Docker (e.g. `image`, `name`); only fields the host *interprets* (paths, mount sources, project keys) need the helpers.
+### When you touch a Docker port output (`info.user`, `info.labels[k]`, `info.env[i]`)
+
+- Path / command / filename use → call a validator from `src/core/security/untrusted-input.ts`. It returns a capability or `undefined`/throws.
+- Display / log / equality only → unwrap with `.unsafe()`. Every `.unsafe()` is grep-able as an audit point — keep them rare.
+
+### When you add a new untrusted source
+
+1. Brand it as `Untrusted<S>` at the **port** type (e.g. `Readonly<Record<string, Untrusted<'docker.config.labels'>>>`).
+2. Construct the value via `untrust(value, source)` in **both** the real and fake adapter (so test fixtures match production shape).
+3. Pick or add a capability + validator in `src/core/security/`. New capability brands go in `brand.ts`; new validators go in `untrusted-input.ts`. Do not roll a regex at the call site.
+4. Add a runtime test in `untrusted-input.test.ts` and a type-level proof in `brand.test-d.ts` if you added a new capability brand.
+
+### What does *not* need branding
+
+- `id`, `name`, `image`, `state` on `ContainerInfo` — Docker daemon controls their format.
+- `args.cwd` and other operator-supplied CLI argv — operator is trusted.
+- `templatesDir` and other paths bundled with the binary.
+- Display strings, log messages.
+
+Rule of thumb: **brand values that flow into security-sensitive sinks AND originate from a non-operator source.**
+
+### Hard rules
+
+- No `as` / `as unknown as` casts in `core/` or `cli/` outside `core/security/`. The single `brandAs<>` helper in `brand.ts` is where casts happen; everywhere else they are a security review event.
+- No regex for input validation outside `core/security/`. Extend the module.
+- No direct import of `node:fs` / `node:child_process` outside `adapters/` (already enforced for unrelated reasons).
+
+### Phase 2 (planned)
+
+`FileSystem` paths and `Shell` args will become capability-typed — sinks themselves will reject raw `string`. This closes the remaining gap where someone constructs a malicious path from string literals. Tracked in `Arch.md`.
 
 ## Commands
 
