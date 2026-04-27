@@ -1,32 +1,14 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME, UID_IMAGE_SUFFIX } from '@/config'
 import { extractCustomMounts } from '@/core/devcontainer/manipulate-mounts'
 import { computeProjectId } from '@/core/project/compute-project-id'
-import type { Mount } from '@/schemas/devcontainer-config'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
+import { type InfoSummary, InfoSummarySchema } from '@/schemas/info-summary'
 import type { CommandDeps } from '../deps'
 
 export interface InfoArgs {
   cwd: string
   /** Emit machine-readable JSON instead of human-readable text. */
   json?: boolean
-}
-
-interface ContainerInfoSummary {
-  id: string
-  name: string
-  state: string
-  image: string
-  hasUidImageVariant: boolean
-  volumes: string[]
-}
-
-interface InfoSummary {
-  workspaceFolder: string
-  projectName: string
-  containerLabel: string
-  hasDevcontainerDir: boolean
-  container: ContainerInfoSummary | null
-  customMounts: Mount[]
 }
 
 async function collectSummary(args: InfoArgs, deps: CommandDeps): Promise<InfoSummary> {
@@ -125,7 +107,10 @@ function printSummary(s: InfoSummary, deps: CommandDeps): void {
 export async function info(args: InfoArgs, deps: CommandDeps): Promise<string | undefined> {
   const summary = await collectSummary(args, deps)
   if (args.json) {
-    return JSON.stringify(summary, null, 2)
+    // Round-trip through the Zod schema so a regression in the shape
+    // (extra/renamed fields) fails fast at runtime instead of leaking
+    // into downstream `jq` consumers.
+    return JSON.stringify(InfoSummarySchema.parse(summary), null, 2)
   }
   printSummary(summary, deps)
   return undefined
