@@ -102,4 +102,31 @@ describe('addBindMount', () => {
     })
     expect(out).toEqual(['source=/h/a,target=/a,type=bind', 'source=/h/b,target=/b,type=bind'])
   })
+
+  it('throws when hostPath contains a comma (CSV injection)', () => {
+    expect(() =>
+      addBindMount({
+        mounts: undefined,
+        hostPath: '/tmp/x,readonly,target=/etc',
+        containerPath: '/data',
+      }),
+    ).toThrow(/reserved character/)
+  })
+
+  it('throws when containerPath contains a comma or =', () => {
+    expect(() =>
+      addBindMount({
+        mounts: undefined,
+        hostPath: '/h',
+        containerPath: '/c,readonly',
+      }),
+    ).toThrow(/reserved character/)
+    expect(() =>
+      addBindMount({
+        mounts: undefined,
+        hostPath: '/h',
+        containerPath: '/c=foo',
+      }),
+    ).toThrow(/reserved character/)
+  })
 })

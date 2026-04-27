@@ -84,9 +84,26 @@ export interface AddBindMountArgs {
  * Adds (or replaces) a bind mount. Any existing mount whose target equals
  * `containerPath` is removed first, so calling this with the same target
  * twice is idempotent — matching `update_devcontainer_mounts` in install.sh.
+ *
+ * Rejects paths containing characters that are reserved by Docker's
+ * `--volume` CSV grammar (`,`, `=`, NUL). A `hostPath` like
+ * `/tmp/x,readonly,target=/etc` would otherwise inject extra fields
+ * and silently rewrite the spec. Linux filesystems allow these
+ * characters in filenames, so the check is necessary even though such
+ * names are rare.
  */
 export function addBindMount(args: AddBindMountArgs): Mount[] {
   const { hostPath, containerPath } = args
+  for (const [name, value] of [
+    ['hostPath', hostPath],
+    ['containerPath', containerPath],
+  ] as const) {
+    if (value.includes(',') || value.includes('=') || value.includes('\0')) {
+      throw new Error(
+        `addBindMount: ${name} '${value}' contains a reserved character (',', '=' or NUL)`,
+      )
+    }
+  }
   const filtered = (args.mounts ?? []).filter((m) => targetOfMount(m) !== containerPath)
   const parts = [`source=${hostPath}`, `target=${containerPath}`, 'type=bind']
   if (args.readonly) parts.push('readonly')
