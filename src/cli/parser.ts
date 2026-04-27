@@ -22,6 +22,7 @@ export type ParsedCommand =
   | { name: 'info'; cwd: string; json: boolean }
   | { name: 'logs'; cwd: string; follow: boolean; tail: number | undefined }
   | { name: 'ps' }
+  | { name: 'validate'; cwd: string }
   | {
       name: 'clean'
       cwd: string
@@ -128,6 +129,8 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
     }
     case 'ps':
       return { name: 'ps' }
+    case 'validate':
+      return { name: 'validate', cwd: ctx.cwd }
     case 'clean':
       return {
         name: 'clean',

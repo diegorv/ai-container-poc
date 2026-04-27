@@ -33,6 +33,7 @@ describe('mydevc CLI (built bundle)', () => {
       'info',
       'logs',
       'ps',
+      'validate',
       'clean',
       'self-install',
       'update',

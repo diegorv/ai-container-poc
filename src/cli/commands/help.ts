@@ -23,6 +23,7 @@ Commands:
     info [--json]          Show project state (container, image, volumes, mounts)
     logs [-f] [--tail N]   Show docker logs for the current project's container
     ps                     List every devcontainer across the host
+    validate               Validate .devcontainer/devcontainer.json
     clean [flags]          Granular cleanup: --container --volumes --images --cache
     self-install           Symlink mydevc into ~/.local/bin
     update                 Pull the latest mydevc from git

@@ -28,6 +28,7 @@ import { template } from './commands/template'
 import { up } from './commands/up'
 import { update } from './commands/update'
 import { upgrade } from './commands/upgrade'
+import { validate } from './commands/validate'
 import type { CommandDeps } from './deps'
 import { type ParsedCommand, parseArgs } from './parser'
 
@@ -108,6 +109,9 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
       return logs(cmd, deps)
     case 'ps':
       await ps({}, deps)
+      return 0
+    case 'validate':
+      await validate(cmd, deps)
       return 0
     case 'clean':
       await clean(cmd, deps)
