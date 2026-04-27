@@ -98,9 +98,11 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
     case 'destroy':
       await destroy(cmd, deps)
       return 0
-    case 'info':
-      await info(cmd, deps)
+    case 'info': {
+      const json = await info(cmd, deps)
+      if (json !== undefined) process.stdout.write(`${json}\n`)
       return 0
+    }
     case 'logs':
       return logs(cmd, deps)
     case 'ps':

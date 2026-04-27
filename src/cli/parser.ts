@@ -19,7 +19,7 @@ export type ParsedCommand =
   | { name: 'sync'; filter: string | undefined; trusted: boolean }
   | { name: 'cp'; containerPath: string; hostPath: string; cwd: string }
   | { name: 'destroy'; cwd: string; force: boolean }
-  | { name: 'info'; cwd: string }
+  | { name: 'info'; cwd: string; json: boolean }
   | { name: 'logs'; cwd: string; follow: boolean; tail: number | undefined }
   | { name: 'ps' }
   | {
@@ -110,7 +110,7 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
     case 'destroy':
       return { name: 'destroy', cwd: ctx.cwd, force: hasFlag(args, '-f') }
     case 'info':
-      return { name: 'info', cwd: ctx.cwd }
+      return { name: 'info', cwd: ctx.cwd, json: hasFlag(args, '--json') }
     case 'logs': {
       const follow = hasFlag(args, '-f') || hasFlag(args, '--follow')
       const tailIdx = args.indexOf('--tail')

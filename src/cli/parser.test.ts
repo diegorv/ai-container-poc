@@ -92,7 +92,15 @@ describe('parseArgs', () => {
   })
 
   it('parses info', () => {
-    expect(parseArgs(['info'], ctx)).toEqual({ name: 'info', cwd: '/proj' })
+    expect(parseArgs(['info'], ctx)).toEqual({ name: 'info', cwd: '/proj', json: false })
+  })
+
+  it('parses info --json', () => {
+    expect(parseArgs(['info', '--json'], ctx)).toEqual({
+      name: 'info',
+      cwd: '/proj',
+      json: true,
+    })
   })
 
   it('parses clean with multiple selection flags', () => {
