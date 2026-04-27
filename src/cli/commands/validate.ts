@@ -50,8 +50,8 @@ export async function validate(args: ValidateArgs, deps: CommandDeps): Promise<v
   const sys = checkNoSysAdmin(parsed.data)
   if (!sys.ok) {
     throw new CliError(
-      `runArgs contains SYS_ADMIN (${sys.offendingArg}). This defeats the read-only .devcontainer mount.`,
-      { suggestion: `Remove the SYS_ADMIN entry from runArgs in ${dcJson}.` },
+      `runArgs contains an unsafe entry '${sys.offendingArg}' (${sys.reason ?? 'rejected'}).`,
+      { suggestion: `Remove '${sys.offendingArg}' from runArgs in ${dcJson}.` },
     )
   }
 

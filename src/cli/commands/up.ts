@@ -9,10 +9,9 @@ export interface UpArgs {
 }
 
 /**
- * Ports `cmd_up` from install.sh. Validates that no `SYS_ADMIN`
- * capability has snuck into runArgs (which would defeat the read-only
- * .devcontainer mount), then asks the devcontainer CLI to bring the
- * container up.
+ * Ports `cmd_up` from install.sh. Validates that no sandbox-defeating
+ * `runArgs` entry has snuck into devcontainer.json, then asks the
+ * devcontainer CLI to bring the container up.
  */
 export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
   const { devcontainer, fs, logger } = deps
@@ -23,9 +22,9 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
     const check = checkNoSysAdmin(parsed)
     if (!check.ok) {
       throw new CliError(
-        `SYS_ADMIN detected in runArgs (${check.offendingArg}). This defeats the read-only .devcontainer mount; refusing to start.`,
+        `Unsafe runArgs entry '${check.offendingArg}' (${check.reason ?? 'rejected'}). Refusing to start.`,
         {
-          suggestion: `Remove the SYS_ADMIN entry from runArgs in ${dcJson} and re-run.`,
+          suggestion: `Remove '${check.offendingArg}' from runArgs in ${dcJson} and re-run.`,
         },
       )
     }

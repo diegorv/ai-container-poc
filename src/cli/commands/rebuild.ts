@@ -18,9 +18,9 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
     const check = checkNoSysAdmin(parsed)
     if (!check.ok) {
       throw new CliError(
-        `SYS_ADMIN detected in runArgs (${check.offendingArg}). This defeats the read-only .devcontainer mount; refusing to rebuild.`,
+        `Unsafe runArgs entry '${check.offendingArg}' (${check.reason ?? 'rejected'}). Refusing to rebuild.`,
         {
-          suggestion: `Remove the SYS_ADMIN entry from runArgs in ${dcJson} and re-run.`,
+          suggestion: `Remove '${check.offendingArg}' from runArgs in ${dcJson} and re-run.`,
         },
       )
     }
