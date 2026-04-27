@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Security audit (high+)
+        run: pnpm audit --audit-level=high
+
       - name: Lint (biome ci)
         run: pnpm biome ci .
 
@@ -42,6 +45,25 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Bundle size budget
+        # Keep dist/ small enough that the npm package stays lean.
+        # Bump the limits below if a dependency genuinely needs more room.
+        run: |
+          cli_size=$(stat -c%s dist/cli/index.js)
+          init_size=$(stat -c%s dist/container-init/index.js)
+          cli_max=$((60 * 1024))
+          init_max=$((20 * 1024))
+          echo "dist/cli/index.js            $cli_size bytes (max $cli_max)"
+          echo "dist/container-init/index.js $init_size bytes (max $init_max)"
+          if [ "$cli_size" -gt "$cli_max" ]; then
+            echo "::error::dist/cli/index.js exceeds $cli_max bytes"
+            exit 1
+          fi
+          if [ "$init_size" -gt "$init_max" ]; then
+            echo "::error::dist/container-init/index.js exceeds $init_max bytes"
+            exit 1
+          fi
 
       - name: Test
         run: pnpm vitest run
