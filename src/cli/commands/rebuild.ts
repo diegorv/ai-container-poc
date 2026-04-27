@@ -1,8 +1,9 @@
-import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
 import { findUnknownTopLevelFields } from '@/core/devcontainer/find-unknown-fields'
+import { devcontainerJsonOf } from '@/core/paths'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
@@ -14,7 +15,8 @@ export interface RebuildArgs {
 /** Ports `cmd_rebuild` from install.sh — `up --remove-existing-container`. */
 export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<void> {
   const { devcontainer, docker, env, fs, logger } = deps
-  const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
+  const cwd = operatorPath(args.cwd)
+  const dcJson = devcontainerJsonOf(cwd)
 
   if (await fs.exists(dcJson)) {
     const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
@@ -42,9 +44,9 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
     }
   }
 
-  await logger.withSpinner(`Rebuilding devcontainer in ${args.cwd}`, () =>
-    devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true }),
+  await logger.withSpinner(`Rebuilding devcontainer in ${cwd}`, () =>
+    devcontainer.up({ workspaceFolder: cwd, removeExistingContainer: true }),
   )
 
-  await enforceFirewall(args.cwd, { docker, fs, logger })
+  await enforceFirewall(cwd, { docker, fs, logger })
 }

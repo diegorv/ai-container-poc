@@ -4,6 +4,7 @@ import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { sync } from './sync'
@@ -45,13 +46,9 @@ function buildSyncDeps(opts: SyncFakeOpts): CommandDeps & {
       // dest like `${TMP}/`. Strip trailing slash for join.
       const root = dest.endsWith('/') ? dest.slice(0, -1) : dest
       for (const [rel, content] of Object.entries(seeded)) {
-        await fs.mkdir(
-          `${root}${rel.includes('/') ? `/${rel.split('/').slice(0, -1).join('/')}` : ''}`,
-          {
-            recursive: true,
-          },
-        )
-        await fs.writeFile(`${root}/${rel}`, content)
+        const dirPath = `${root}${rel.includes('/') ? `/${rel.split('/').slice(0, -1).join('/')}` : ''}`
+        await fs.mkdir(p(dirPath), { recursive: true })
+        await fs.writeFile(p(`${root}/${rel}`), content)
       }
     },
   })
@@ -62,8 +59,8 @@ function buildSyncDeps(opts: SyncFakeOpts): CommandDeps & {
     shell,
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt([true]),
-    templatesDir: '/tpl',
-    env: { HOME: '/home/alice' },
+    templatesDir: p('/tpl'),
+    env: { HOME: p('/home/alice') },
   }
 }
 
@@ -76,8 +73,8 @@ describe('sync command', () => {
       shell: createFakeShell(),
       logger: createMemoryLogger(),
       prompt: createScriptedPrompt([true]),
-      templatesDir: '/tpl',
-      env: { HOME: '/home/alice' },
+      templatesDir: p('/tpl'),
+      env: { HOME: p('/home/alice') },
     }
     await expect(sync({ trusted: true }, deps)).rejects.toThrow(/No devcontainers found/)
   })
@@ -99,7 +96,7 @@ describe('sync command', () => {
     })
     await sync({ trusted: true }, deps)
     expect(
-      await deps.fs.readFile('/home/alice/.claude/projects/-devcontainer-crypto/sess1.jsonl'),
+      await deps.fs.readFile(p('/home/alice/.claude/projects/-devcontainer-crypto/sess1.jsonl')),
     ).toBe('{"a":1}')
   })
 
@@ -113,7 +110,7 @@ describe('sync command', () => {
     })
     await sync({ trusted: true }, deps)
     expect(
-      await deps.fs.readFile('/home/alice/.claude/projects/-Users-alice-code-other/sess.jsonl'),
+      await deps.fs.readFile(p('/home/alice/.claude/projects/-Users-alice-code-other/sess.jsonl')),
     ).toBe('{}')
   })
 

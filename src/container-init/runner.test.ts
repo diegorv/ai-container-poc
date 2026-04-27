@@ -1,6 +1,7 @@
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import { runSteps } from './runner'
 import type { Step, StepContext } from './steps/step'
@@ -10,10 +11,10 @@ function ctx(): StepContext & { logger: ReturnType<typeof createMemoryLogger> } 
     fs: createMemoryFs(),
     shell: createFakeShell(),
     logger: createMemoryLogger(),
-    homeDir: '/h',
+    homeDir: p('/h'),
     uid: 0,
     gid: 0,
-    env: { HOME: '/h' },
+    env: { HOME: p('/h') },
   }
 }
 

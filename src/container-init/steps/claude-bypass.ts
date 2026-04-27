@@ -1,6 +1,8 @@
+import { joinPath, operatorPath, safeFilename } from '@/core/security/path'
 import type { Step } from './step'
 
 const CLAUDE_TIMEOUT_MS = 30_000
+const CLAUDE_JSON_SEG = safeFilename('.claude.json')
 
 /**
  * Ports `setup_onboarding_bypass` from post_install.py.
@@ -18,8 +20,8 @@ export const claudeBypassStep: Step = {
       return { ok: true, message: 'no CLAUDE_CODE_OAUTH_TOKEN set, skipping' }
     }
 
-    const claudeJsonDir = env.CLAUDE_CONFIG_DIR ?? homeDir
-    const claudeJson = `${claudeJsonDir}/.claude.json`
+    const claudeJsonDir = env.CLAUDE_CONFIG_DIR ? operatorPath(env.CLAUDE_CONFIG_DIR) : homeDir
+    const claudeJson = joinPath(claudeJsonDir, CLAUDE_JSON_SEG)
 
     const claudeBin = await shell.which('claude')
     if (!claudeBin) {

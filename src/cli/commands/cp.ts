@@ -1,4 +1,5 @@
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import type { CommandDeps } from '../deps'
 
@@ -24,7 +25,7 @@ export async function cp(args: CpArgs, deps: CommandDeps): Promise<void> {
   const { docker, logger } = deps
   rejectFlagLike('containerPath', args.containerPath)
   rejectFlagLike('hostPath', args.hostPath)
-  const project = computeProjectId(args.cwd)
+  const project = computeProjectId(operatorPath(args.cwd))
   const containers = await docker.listContainers({ label: project.containerLabel })
   const running = containers.find((c) => c.state === 'running') ?? containers[0]
   if (!running) {

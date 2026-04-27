@@ -1,6 +1,7 @@
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import { directoryOwnershipStep } from './directory-ownership'
 import type { StepContext } from './step'
@@ -14,10 +15,10 @@ function ctx(uid = 1000): StepContext & {
     fs: createMemoryFs({}, { uid }),
     shell: createFakeShell(),
     logger: createMemoryLogger(),
-    homeDir: '/home/vscode',
+    homeDir: p('/home/vscode'),
     uid,
     gid: uid,
-    env: { HOME: '/home/vscode' },
+    env: { HOME: p('/home/vscode') },
   }
 }
 
@@ -26,9 +27,9 @@ describe('directory-ownership step', () => {
     const c = ctx(1000)
     // Seed all three target dirs with uid=0 (root) so chown is needed for each.
     c.fs = createMemoryFs({}, { uid: 0 })
-    await c.fs.mkdir('/home/vscode/.claude', { recursive: true })
-    await c.fs.mkdir('/commandhistory', { recursive: true })
-    await c.fs.mkdir('/home/vscode/.config/gh', { recursive: true })
+    await c.fs.mkdir(p('/home/vscode/.claude'), { recursive: true })
+    await c.fs.mkdir(p('/commandhistory'), { recursive: true })
+    await c.fs.mkdir(p('/home/vscode/.config/gh'), { recursive: true })
 
     const result = await directoryOwnershipStep.run(c)
     expect(result.ok).toBe(true)
@@ -50,8 +51,8 @@ describe('directory-ownership step', () => {
   it('continues after a chown failure', async () => {
     const c = ctx(1000)
     c.fs = createMemoryFs({}, { uid: 0 })
-    await c.fs.mkdir('/home/vscode/.claude', { recursive: true })
-    await c.fs.mkdir('/commandhistory', { recursive: true })
+    await c.fs.mkdir(p('/home/vscode/.claude'), { recursive: true })
+    await c.fs.mkdir(p('/commandhistory'), { recursive: true })
     c.shell.setResponder((cmd, args) => {
       if (cmd === 'sudo' && args.includes('/commandhistory')) {
         return { exitCode: 1, stderr: 'permission denied' }

@@ -1,10 +1,14 @@
-import { CONTAINER_LABEL_KEY, DEVCONTAINER_DIR } from '@/config'
+import { CONTAINER_LABEL_KEY } from '@/config'
+import { devcontainerDirOf } from '@/core/paths'
+import type { AbsolutePath } from '@/core/security/brand'
+import { joinPath, safeFilename } from '@/core/security/path'
 import type { Docker } from '@/ports/docker'
 import type { FileSystem } from '@/ports/filesystem'
 import type { Logger } from '@/ports/logger'
 
 const FIREWALL_SCRIPT = '/opt/mydevc/setup-firewall.sh'
 const ALLOWLIST_FILENAME = 'firewall-allowlist.txt'
+const ALLOWLIST_FILENAME_SEG = safeFilename(ALLOWLIST_FILENAME)
 
 export interface EnforceFirewallDeps {
   docker: Docker
@@ -24,10 +28,10 @@ export interface EnforceFirewallDeps {
  * is the documented signal for "no firewall, full network".
  */
 export async function enforceFirewall(
-  workspaceFolder: string,
+  workspaceFolder: AbsolutePath,
   deps: EnforceFirewallDeps,
 ): Promise<void> {
-  const allowlist = `${workspaceFolder}/${DEVCONTAINER_DIR}/${ALLOWLIST_FILENAME}`
+  const allowlist = joinPath(devcontainerDirOf(workspaceFolder), ALLOWLIST_FILENAME_SEG)
   if (!(await deps.fs.exists(allowlist))) return
 
   const containers = await deps.docker.listContainers({

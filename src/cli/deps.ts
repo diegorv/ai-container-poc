@@ -1,3 +1,4 @@
+import type { AbsolutePath } from '@/core/security/brand'
 import type { DevcontainerCli } from '@/ports/devcontainer'
 import type { Docker } from '@/ports/docker'
 import type { FileSystem } from '@/ports/filesystem'
@@ -19,6 +20,6 @@ export interface CommandDeps {
   logger: Logger
   prompt: Prompt
   /** Absolute path to the bundled templates folder (Dockerfile, .zshrc, …). */
-  templatesDir: string
+  templatesDir: AbsolutePath
   env: Env
 }

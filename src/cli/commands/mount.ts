@@ -1,6 +1,7 @@
-import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousMountPath } from '@/core/devcontainer/dangerous-mount-paths'
 import { addBindMount } from '@/core/devcontainer/manipulate-mounts'
+import { devcontainerJsonOf } from '@/core/paths'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { hasJsoncSyntax } from '@/lib/jsonc-detect'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
@@ -22,7 +23,8 @@ export interface MountArgs {
  */
 export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
   const { devcontainer, env, fs, logger } = deps
-  const dcJson = `${args.cwd}/${DEVCONTAINER_DIR}/${DEVCONTAINER_FILENAME}`
+  const cwd = operatorPath(args.cwd)
+  const dcJson = devcontainerJsonOf(cwd)
 
   if (!(await fs.exists(dcJson))) {
     throw new CliError(`No devcontainer.json at ${dcJson}.`, {
@@ -30,10 +32,11 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
     })
   }
 
-  if (!(await fs.exists(args.hostPath))) {
-    throw new CliError(`Host path does not exist: ${args.hostPath}`)
+  const hostPath = operatorPath(args.hostPath)
+  if (!(await fs.exists(hostPath))) {
+    throw new CliError(`Host path does not exist: ${hostPath}`)
   }
-  const resolvedHost = await fs.realpath(args.hostPath)
+  const resolvedHost = await fs.realpath(hostPath)
 
   const danger = findDangerousMountPath(resolvedHost, env.HOME)
   if (danger && !args.allowDangerous) {
@@ -60,7 +63,7 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
 
   logger.info(`Adding mount: ${resolvedHost} → ${args.containerPath}`)
   await logger.withSpinner('Recreating container with new mount', () =>
-    devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true }),
+    devcontainer.up({ workspaceFolder: cwd, removeExistingContainer: true }),
   )
   logger.success(`Mount added: ${resolvedHost} → ${args.containerPath}`)
 }

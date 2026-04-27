@@ -1,5 +1,6 @@
 import { UID_IMAGE_SUFFIX } from '@/config'
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import type { CommandDeps } from '../deps'
 
@@ -67,7 +68,7 @@ export async function clean(args: CleanArgs, deps: CommandDeps): Promise<void> {
     })
   }
 
-  const project = computeProjectId(args.cwd)
+  const project = computeProjectId(operatorPath(args.cwd))
   const found = await discover(deps, project.containerLabel)
 
   const plan: string[] = []

@@ -1,6 +1,7 @@
 import { createFakeDocker } from '@/adapters/docker/fake-docker'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import { enforceFirewall } from './enforce-firewall'
 
@@ -25,16 +26,16 @@ function buildDeps(opts: { exitCode?: number; stderr?: string; stdout?: string }
 describe('enforceFirewall', () => {
   it('is a no-op when no firewall allowlist is present', async () => {
     const deps = buildDeps()
-    await enforceFirewall('/proj', deps)
+    await enforceFirewall(p('/proj'), deps)
     expect(deps.docker.execCalls).toHaveLength(0)
   })
 
   it('runs setup-firewall.sh when the allowlist is present', async () => {
     const deps = buildDeps({ stdout: 'Active with 5 destinations.' })
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await deps.fs.writeFile('/proj/.devcontainer/firewall-allowlist.txt', 'github.com\n')
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/firewall-allowlist.txt'), 'github.com\n')
 
-    await enforceFirewall('/proj', deps)
+    await enforceFirewall(p('/proj'), deps)
 
     expect(deps.docker.execCalls).toEqual([
       {
@@ -48,23 +49,23 @@ describe('enforceFirewall', () => {
 
   it('stops the container and throws when the firewall script fails', async () => {
     const deps = buildDeps({ exitCode: 1, stderr: 'iptables: command not found' })
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await deps.fs.writeFile('/proj/.devcontainer/firewall-allowlist.txt', 'github.com\n')
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/firewall-allowlist.txt'), 'github.com\n')
 
-    await expect(enforceFirewall('/proj', deps)).rejects.toThrow(/setup-firewall.sh failed/)
+    await expect(enforceFirewall(p('/proj'), deps)).rejects.toThrow(/setup-firewall.sh failed/)
     const after = await deps.docker.inspectContainer('cid-foo')
     expect(after.state).toBe('exited')
   })
 
   it('throws when no container exists for the workspace', async () => {
     const fs = createMemoryFs()
-    await fs.mkdir('/proj/.devcontainer', { recursive: true })
-    await fs.writeFile('/proj/.devcontainer/firewall-allowlist.txt', 'github.com\n')
+    await fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await fs.writeFile(p('/proj/.devcontainer/firewall-allowlist.txt'), 'github.com\n')
     const deps = {
       fs,
       docker: createFakeDocker(),
       logger: createMemoryLogger(),
     }
-    await expect(enforceFirewall('/proj', deps)).rejects.toThrow(/no container was found/)
+    await expect(enforceFirewall(p('/proj'), deps)).rejects.toThrow(/no container was found/)
   })
 })

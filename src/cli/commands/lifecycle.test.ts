@@ -4,6 +4,7 @@ import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
+import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { down } from './down'
@@ -29,8 +30,8 @@ function buildDeps(opts: BuildOptions = {}): CommandDeps & {
     shell: createFakeShell(),
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
-    templatesDir: '/tpl',
-    env: { HOME: '/home/alice' },
+    templatesDir: p('/tpl'),
+    env: { HOME: p('/home/alice') },
   }
 }
 
@@ -43,9 +44,9 @@ describe('up', () => {
 
   it('refuses to start when SYS_ADMIN is in runArgs', async () => {
     const deps = buildDeps()
-    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(
-      '/proj/.devcontainer/devcontainer.json',
+      p('/proj/.devcontainer/devcontainer.json'),
       JSON.stringify({ runArgs: ['--cap-add=SYS_ADMIN'] }),
     )
     await expect(up({ cwd: '/proj' }, deps)).rejects.toThrow(/SYS_ADMIN/)

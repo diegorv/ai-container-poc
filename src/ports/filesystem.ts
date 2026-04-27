@@ -1,3 +1,5 @@
+import type { AbsolutePath } from '@/core/security/brand'
+
 export interface FileStat {
   isDirectory: boolean
   isFile: boolean
@@ -10,19 +12,29 @@ export interface FileStat {
   mtimeMs: number
 }
 
+/**
+ * Filesystem port. Every method that takes a path takes `AbsolutePath`,
+ * the capability brand produced by `core/security/path` factories
+ * (`literalPath`, `operatorPath`, `joinPath`). A raw `string` does not
+ * compile here — that is the structural enforcement of the security
+ * boundary: paths cannot reach the disk without having been validated.
+ *
+ * `realpath` and `readlink` return `AbsolutePath` because their results
+ * flow back into the same APIs.
+ */
 export interface FileSystem {
-  readFile(path: string): Promise<string>
-  writeFile(path: string, content: string): Promise<void>
-  exists(path: string): Promise<boolean>
-  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>
-  readdir(path: string): Promise<string[]>
-  copy(src: string, dest: string, options?: { recursive?: boolean }): Promise<void>
-  remove(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>
-  stat(path: string): Promise<FileStat>
+  readFile(path: AbsolutePath): Promise<string>
+  writeFile(path: AbsolutePath, content: string): Promise<void>
+  exists(path: AbsolutePath): Promise<boolean>
+  mkdir(path: AbsolutePath, options?: { recursive?: boolean }): Promise<void>
+  readdir(path: AbsolutePath): Promise<string[]>
+  copy(src: AbsolutePath, dest: AbsolutePath, options?: { recursive?: boolean }): Promise<void>
+  remove(path: AbsolutePath, options?: { recursive?: boolean; force?: boolean }): Promise<void>
+  stat(path: AbsolutePath): Promise<FileStat>
   /** Like `stat` but does not follow symlinks. */
-  lstat(path: string): Promise<FileStat>
-  realpath(path: string): Promise<string>
-  symlink(target: string, path: string): Promise<void>
-  readlink(path: string): Promise<string>
-  chmod(path: string, mode: number): Promise<void>
+  lstat(path: AbsolutePath): Promise<FileStat>
+  realpath(path: AbsolutePath): Promise<AbsolutePath>
+  symlink(target: AbsolutePath, path: AbsolutePath): Promise<void>
+  readlink(path: AbsolutePath): Promise<string>
+  chmod(path: AbsolutePath, mode: number): Promise<void>
 }

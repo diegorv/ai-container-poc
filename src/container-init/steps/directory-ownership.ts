@@ -1,4 +1,10 @@
+import { joinPath, literalPath, safeFilename } from '@/core/security/path'
 import type { Step } from './step'
+
+const DOT_CLAUDE_SEG = safeFilename('.claude')
+const DOT_CONFIG_SEG = safeFilename('.config')
+const GH_SEG = safeFilename('gh')
+const COMMANDHISTORY = literalPath('/commandhistory')
 
 /**
  * Ports `fix_directory_ownership` from post_install.py — when a mounted
@@ -10,7 +16,11 @@ import type { Step } from './step'
 export const directoryOwnershipStep: Step = {
   name: 'fs:ownership',
   async run({ fs, homeDir, logger, shell, uid }) {
-    const dirs = [`${homeDir}/.claude`, '/commandhistory', `${homeDir}/.config/gh`]
+    const dirs = [
+      joinPath(homeDir, DOT_CLAUDE_SEG),
+      COMMANDHISTORY,
+      joinPath(homeDir, DOT_CONFIG_SEG, GH_SEG),
+    ]
     const fixed: string[] = []
 
     for (const dir of dirs) {

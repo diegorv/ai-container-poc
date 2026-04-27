@@ -7,6 +7,8 @@ import { nodeFs } from '@/adapters/filesystem/node-fs'
 import { createPrettyLogger } from '@/adapters/logger/pretty-logger'
 import { ttyPrompt } from '@/adapters/prompt/tty-prompt'
 import { execaShell } from '@/adapters/shell/execa-shell'
+import type { AbsolutePath } from '@/core/security/brand'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { EnvSchema } from '@/schemas/env'
 import { clean } from './commands/clean'
@@ -33,11 +35,11 @@ import { validate } from './commands/validate'
 import type { CommandDeps } from './deps'
 import { type ParsedCommand, type Verbosity, parseArgs, parseGlobalFlags } from './parser'
 
-function resolveTemplatesDir(): string {
+function resolveTemplatesDir(): AbsolutePath {
   // dist/cli/index.js → templates/ at repo root in production.
   // src/cli/index.ts → templates/ at repo root via tsx in dev.
   const here = dirname(fileURLToPath(import.meta.url))
-  return resolve(here, '..', '..', 'templates')
+  return operatorPath(resolve(here, '..', '..', 'templates'))
 }
 
 function buildDeps(verbosity: Verbosity): CommandDeps {
@@ -57,13 +59,13 @@ function buildDeps(verbosity: Verbosity): CommandDeps {
   }
 }
 
-function currentBinaryPath(): string {
-  return fileURLToPath(import.meta.url)
+function currentBinaryPath(): AbsolutePath {
+  return operatorPath(fileURLToPath(import.meta.url))
 }
 
-function repoRootDir(): string {
+function repoRootDir(): AbsolutePath {
   // dist/cli/index.js or src/cli/index.ts → repo root is two parents up.
-  return resolve(dirname(currentBinaryPath()), '..', '..')
+  return operatorPath(resolve(dirname(currentBinaryPath()), '..', '..'))
 }
 
 async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> {

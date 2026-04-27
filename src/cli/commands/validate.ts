@@ -1,6 +1,7 @@
-import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
+import { devcontainerJsonOf } from '@/core/paths'
+import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
@@ -19,8 +20,8 @@ export interface ValidateArgs {
  */
 export async function validate(args: ValidateArgs, deps: CommandDeps): Promise<void> {
   const { fs, logger } = deps
-  const dcDir = `${args.cwd}/${DEVCONTAINER_DIR}`
-  const dcJson = `${dcDir}/${DEVCONTAINER_FILENAME}`
+  const cwd = operatorPath(args.cwd)
+  const dcJson = devcontainerJsonOf(cwd)
 
   if (!(await fs.exists(dcJson))) {
     throw new CliError(`No devcontainer.json at ${dcJson}.`, {

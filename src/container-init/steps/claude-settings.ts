@@ -1,4 +1,8 @@
+import { joinPath, operatorPath, safeFilename } from '@/core/security/path'
 import type { Step } from './step'
+
+const DOT_CLAUDE_SEG = safeFilename('.claude')
+const SETTINGS_JSON_SEG = safeFilename('settings.json')
 
 interface PermissionsBlock {
   defaultMode?: string
@@ -18,8 +22,10 @@ interface ClaudeSettings {
 export const claudeSettingsStep: Step = {
   name: 'claude:settings',
   async run({ env, fs, homeDir }) {
-    const claudeDir = env.CLAUDE_CONFIG_DIR ?? `${homeDir}/.claude`
-    const settingsFile = `${claudeDir}/settings.json`
+    const claudeDir = env.CLAUDE_CONFIG_DIR
+      ? operatorPath(env.CLAUDE_CONFIG_DIR)
+      : joinPath(homeDir, DOT_CLAUDE_SEG)
+    const settingsFile = joinPath(claudeDir, SETTINGS_JSON_SEG)
     await fs.mkdir(claudeDir, { recursive: true })
 
     let settings: ClaudeSettings = {}
