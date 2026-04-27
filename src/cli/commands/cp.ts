@@ -1,4 +1,5 @@
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { CliError } from '@/lib/cli-error'
 import type { CommandDeps } from '../deps'
 
 export interface CpArgs {
@@ -17,7 +18,9 @@ export async function cp(args: CpArgs, deps: CommandDeps): Promise<void> {
   const containers = await docker.listContainers({ label: project.containerLabel })
   const running = containers.find((c) => c.state === 'running') ?? containers[0]
   if (!running) {
-    throw new Error(`No running devcontainer found for ${args.cwd}`)
+    throw new CliError(`No running devcontainer found for ${args.cwd}.`, {
+      suggestion: 'Start one with `mydevc up` (or `mydevc dot`) first.',
+    })
   }
   logger.info(`Copying ${args.containerPath} → ${args.hostPath}`)
   await docker.cp({

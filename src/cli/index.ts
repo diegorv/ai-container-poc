@@ -4,9 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { createCliDevcontainer } from '@/adapters/devcontainer/cli-devcontainer'
 import { createCliDocker } from '@/adapters/docker/cli-docker'
 import { nodeFs } from '@/adapters/filesystem/node-fs'
-import { createPinoLogger } from '@/adapters/logger/pino-logger'
+import { createPrettyLogger } from '@/adapters/logger/pretty-logger'
 import { ttyPrompt } from '@/adapters/prompt/tty-prompt'
 import { execaShell } from '@/adapters/shell/execa-shell'
+import { CliError } from '@/lib/cli-error'
 import { EnvSchema } from '@/schemas/env'
 import { clean } from './commands/clean'
 import { cp } from './commands/cp'
@@ -16,7 +17,9 @@ import { down } from './commands/down'
 import { exec } from './commands/exec'
 import { HELP_TEXT } from './commands/help'
 import { info } from './commands/info'
+import { logs } from './commands/logs'
 import { mount } from './commands/mount'
+import { ps } from './commands/ps'
 import { rebuild } from './commands/rebuild'
 import { selfInstall } from './commands/self-install'
 import { shell } from './commands/shell'
@@ -44,7 +47,7 @@ function buildDeps(): CommandDeps {
     docker,
     devcontainer,
     shell: execaShell,
-    logger: createPinoLogger(),
+    logger: createPrettyLogger(),
     prompt: ttyPrompt,
     templatesDir: resolveTemplatesDir(),
     env,
@@ -96,8 +99,15 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
     case 'destroy':
       await destroy(cmd, deps)
       return 0
-    case 'info':
-      await info(cmd, deps)
+    case 'info': {
+      const json = await info(cmd, deps)
+      if (json !== undefined) process.stdout.write(`${json}\n`)
+      return 0
+    }
+    case 'logs':
+      return logs(cmd, deps)
+    case 'ps':
+      await ps({}, deps)
       return 0
     case 'clean':
       await clean(cmd, deps)
@@ -123,5 +133,8 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err)
   process.stderr.write(`mydevc: ${message}\n`)
+  if (err instanceof CliError && err.suggestion) {
+    process.stderr.write(`Try: ${err.suggestion}\n`)
+  }
   process.exit(1)
 })

@@ -20,7 +20,9 @@ Commands:
     sync [filter]          Sync Claude sessions from devcontainers to host
     cp <ct> <host>         Copy a path from the container to the host
     destroy [-f]           Remove container, volumes and images
-    info                   Show project state (container, image, volumes, mounts)
+    info [--json]          Show project state (container, image, volumes, mounts)
+    logs [-f] [--tail N]   Show docker logs for the current project's container
+    ps                     List every devcontainer across the host
     clean [flags]          Granular cleanup: --container --volumes --images --cache
     self-install           Symlink mydevc into ~/.local/bin
     update                 Pull the latest mydevc from git

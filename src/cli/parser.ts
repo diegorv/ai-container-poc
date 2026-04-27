@@ -19,7 +19,9 @@ export type ParsedCommand =
   | { name: 'sync'; filter: string | undefined; trusted: boolean }
   | { name: 'cp'; containerPath: string; hostPath: string; cwd: string }
   | { name: 'destroy'; cwd: string; force: boolean }
-  | { name: 'info'; cwd: string }
+  | { name: 'info'; cwd: string; json: boolean }
+  | { name: 'logs'; cwd: string; follow: boolean; tail: number | undefined }
+  | { name: 'ps' }
   | {
       name: 'clean'
       cwd: string
@@ -108,7 +110,24 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
     case 'destroy':
       return { name: 'destroy', cwd: ctx.cwd, force: hasFlag(args, '-f') }
     case 'info':
-      return { name: 'info', cwd: ctx.cwd }
+      return { name: 'info', cwd: ctx.cwd, json: hasFlag(args, '--json') }
+    case 'logs': {
+      const follow = hasFlag(args, '-f') || hasFlag(args, '--follow')
+      const tailIdx = args.indexOf('--tail')
+      let tail: number | undefined
+      if (tailIdx !== -1 && tailIdx + 1 < args.length) {
+        const raw = args[tailIdx + 1]
+        const parsed = raw === undefined ? Number.NaN : Number(raw)
+        if (!Number.isInteger(parsed) || parsed < 0) {
+          throw new Error('--tail expects a non-negative integer')
+        }
+        tail = parsed
+        args.splice(tailIdx, 2)
+      }
+      return { name: 'logs', cwd: ctx.cwd, follow, tail }
+    }
+    case 'ps':
+      return { name: 'ps' }
     case 'clean':
       return {
         name: 'clean',

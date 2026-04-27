@@ -93,6 +93,39 @@ describe('info command', () => {
     expect(deps.logger.has('info', '-uid')).toBe(true)
   })
 
+  it('returns a JSON string when --json is passed (no logger output)', async () => {
+    const docker = createFakeDocker({
+      containers: [
+        {
+          id: 'abc123def4567',
+          name: 'cool',
+          image: 'vsc-crypto-uid',
+          state: 'running',
+          labels: { 'devcontainer.local_folder': '/proj' },
+          mounts: [{ type: 'volume', name: 'cmdhist', destination: '/commandhistory' }],
+        },
+      ],
+      images: ['vsc-crypto', 'vsc-crypto-uid'],
+    })
+    const deps = buildDeps(docker)
+    await deps.fs.mkdir('/proj/.devcontainer', { recursive: true })
+    await deps.fs.writeFile(
+      '/proj/.devcontainer/devcontainer.json',
+      JSON.stringify({ mounts: ['source=/h/data,target=/data,type=bind'] }),
+    )
+    const out = await info({ cwd: '/proj', json: true }, deps)
+    expect(out).toBeTypeOf('string')
+    const parsed = JSON.parse(out as string)
+    expect(parsed.projectName).toBe('proj')
+    expect(parsed.container.id).toBe('abc123def4567')
+    expect(parsed.container.image).toBe('vsc-crypto')
+    expect(parsed.container.hasUidImageVariant).toBe(true)
+    expect(parsed.container.volumes).toEqual(['cmdhist'])
+    expect(parsed.customMounts).toEqual(['source=/h/data,target=/data,type=bind'])
+    // Logger stays silent when --json so the JSON on stdout is the only output.
+    expect(deps.logger.messages).toHaveLength(0)
+  })
+
   it('lists custom mounts from devcontainer.json', async () => {
     const docker = createFakeDocker({
       containers: [

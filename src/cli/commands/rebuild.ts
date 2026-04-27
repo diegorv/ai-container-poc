@@ -1,5 +1,6 @@
 import { DEVCONTAINER_DIR, DEVCONTAINER_FILENAME } from '@/config'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
+import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -16,13 +17,16 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
     const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
     const check = checkNoSysAdmin(parsed)
     if (!check.ok) {
-      throw new Error(
+      throw new CliError(
         `SYS_ADMIN detected in runArgs (${check.offendingArg}). This defeats the read-only .devcontainer mount; refusing to rebuild.`,
+        {
+          suggestion: `Remove the SYS_ADMIN entry from runArgs in ${dcJson} and re-run.`,
+        },
       )
     }
   }
 
-  logger.info(`Rebuilding devcontainer in ${args.cwd}…`)
-  await devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true })
-  logger.success('Devcontainer rebuilt.')
+  await logger.withSpinner(`Rebuilding devcontainer in ${args.cwd}`, () =>
+    devcontainer.up({ workspaceFolder: args.cwd, removeExistingContainer: true }),
+  )
 }
