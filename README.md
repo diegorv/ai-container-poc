@@ -72,12 +72,52 @@ mydevc mount <host> <ct>      Add a host→container bind mount
 mydevc sync [filter]          Sync Claude sessions from devcontainers to host
 mydevc cp <ct> <host>         Copy a path from container to host
 mydevc destroy [-f]           Remove container, volumes and images
+mydevc info                   Show project state (container, image, volumes, mounts)
+mydevc clean [flags]          Granular cleanup: --container --volumes --images --cache
 mydevc self-install           Symlink mydevc into ~/.local/bin
 mydevc update                 git pull this repo
 mydevc help                   Show this help
 ```
 
-> Use `mydevc destroy` to clean up — `docker rm` directly leaves orphaned volumes and images that mydevc won't be able to find later.
+> Use `mydevc destroy` to clean up everything at once — `docker rm` directly leaves orphaned volumes and images that mydevc won't be able to find later. Use `mydevc clean` for granular cleanup that keeps part of the state (e.g. drop the image to free disk while keeping the container's persistent volumes).
+
+### Inspecting state — `mydevc info`
+
+Quickly see what's running for the current workspace:
+
+```
+$ mydevc info
+Workspace:       /Users/alice/code/crypto
+Project name:    crypto
+Container label: devcontainer.local_folder=/Users/alice/code/crypto
+
+Container:       focused_einstein (abc123def456)
+Status:          running
+Image:           vsc-crypto (+ -uid)
+Volumes (3):
+  - devc-crypto-bashhistory-1234
+  - devc-crypto-config-1234
+  - devc-crypto-gh-1234
+
+Custom mounts (1):
+  - source=/Users/alice/data,target=/data,type=bind
+```
+
+Different empty states for "no `.devcontainer/`" vs "no container created yet" point you at the right next command.
+
+### Granular cleanup — `mydevc clean`
+
+`destroy` is all-or-nothing. `clean` is à la carte:
+
+```
+mydevc clean --volumes -f       # drop just the docker volumes (keep image + container)
+mydevc clean --images           # rebuild from scratch on next `up` without losing data
+mydevc clean --cache            # docker builder prune -f
+mydevc clean --container        # remove container only (volumes survive)
+mydevc clean --container --volumes --images --dry-run    # preview what would be removed
+```
+
+Selecting nothing is an error (use `destroy` if you want everything). The `--cache` flag is global, the others are per-project.
 
 ## Session sync for `/insights`
 
