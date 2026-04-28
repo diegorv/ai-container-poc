@@ -5,6 +5,7 @@ import { execaShell } from '@/adapters/shell/execa-shell'
 import { EnvSchema } from '@/schemas/env'
 import { runSteps } from './runner'
 import { claudeBypassStep } from './steps/claude-bypass'
+import { claudeSandboxStep } from './steps/claude-sandbox'
 import { claudeSettingsStep } from './steps/claude-settings'
 import { directoryOwnershipStep } from './steps/directory-ownership'
 import { gitConfigStep } from './steps/git-config'
@@ -14,6 +15,7 @@ import { tmuxConfigStep } from './steps/tmux-config'
 const STEPS = [
   claudeBypassStep,
   claudeSettingsStep,
+  claudeSandboxStep,
   tmuxConfigStep,
   directoryOwnershipStep,
   gitConfigStep,
