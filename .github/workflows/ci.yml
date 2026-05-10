@@ -49,11 +49,16 @@ jobs:
       - name: Bundle size budget
         # Keep dist/ small enough that the npm package stays lean.
         # Bump the limits below if a dependency genuinely needs more room.
+        # cli/ keeps deps external (npm install supplies node_modules).
+        # container-init/ inlines execa+zod via tsup `noExternal` so the
+        # single file copied into the container is self-contained — that
+        # alone is ~390 KB. The 450 KB cap leaves room for routine
+        # transitive growth before forcing a deliberate review.
         run: |
           cli_size=$(stat -c%s dist/cli/index.js)
           init_size=$(stat -c%s dist/container-init/index.js)
-          cli_max=$((60 * 1024))
-          init_max=$((20 * 1024))
+          cli_max=$((100 * 1024))
+          init_max=$((450 * 1024))
           echo "dist/cli/index.js            $cli_size bytes (max $cli_max)"
           echo "dist/container-init/index.js $init_size bytes (max $init_max)"
           if [ "$cli_size" -gt "$cli_max" ]; then
