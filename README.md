@@ -443,6 +443,8 @@ The container is the sandbox: `bypassPermissions` is auto-configured, so Claude 
 
 `SYS_ADMIN` in `runArgs` is rejected by `mydevc up`/`rebuild` because it would defeat the read-only `.devcontainer/` mount that prevents a compromised process from injecting commands into `devcontainer.json`.
 
+`mydevc cp` rejects host destinations whose path begins with `-` (would be parsed as a `docker cp` flag) or contains a `..` segment (almost always a typo from a deep cwd that would clobber files outside the workspace).
+
 ### Untrusted-input handling — types as the fence
 
 The host CLI consumes data the container fully controls: env vars, container labels, `Config.User`, files extracted via `docker cp`, the workspace-side `devcontainer.json`. A path-traversal or command-injection bug in any of those flows would punch through the sandbox. mydevc treats this as the dominant failure mode for an AI-driven devcontainer and pushes the validation **into the type system** rather than relying on developers to remember a helper.
