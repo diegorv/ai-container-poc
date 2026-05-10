@@ -7,11 +7,23 @@ import { describe, expect, it } from 'vitest'
 import { claudeSandboxStep } from './claude-sandbox'
 import type { StepContext } from './step'
 
-async function makeCtx(opts: { withBwrap?: boolean } = {}): Promise<StepContext> {
+async function makeCtx(
+  opts: { withBwrap?: boolean; usernsBlocked?: boolean } = {},
+): Promise<StepContext & { logger: ReturnType<typeof createMemoryLogger> }> {
   const fs = createMemoryFs()
   await fs.mkdir(p('/home/vscode'), { recursive: true })
   const shell = createFakeShell({
     binaries: opts.withBwrap === false ? {} : { bwrap: '/usr/bin/bwrap' },
+    responder: opts.usernsBlocked
+      ? (cmd, args) =>
+          cmd === 'bwrap' && args[0] === '--unshare-user'
+            ? {
+                exitCode: 1,
+                stderr:
+                  'bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces.',
+              }
+            : undefined
+      : undefined,
   })
   return {
     fs,
@@ -105,5 +117,31 @@ describe('claude-sandbox step', () => {
       message: expect.stringContaining('bubblewrap not installed'),
     })
     expect(await c.fs.exists(p('/home/vscode/.local/bin/claude-jail'))).toBe(false)
+  })
+
+  it('warns and flags the result when user namespaces are blocked', async () => {
+    const c = await makeCtx({ usernsBlocked: true })
+    const r = await claudeSandboxStep.run(c)
+    expect(r.ok).toBe(true)
+    // Shim is still on disk so the operator can flip a seccomp policy
+    // later without re-running init.
+    expect(await c.fs.exists(p('/home/vscode/.local/bin/claude-jail'))).toBe(true)
+    if (r.ok) {
+      expect(r.message).toMatch(/kernel\/seccomp blocks bwrap/)
+    }
+    expect(c.logger.has('warn', 'unprivileged user namespaces')).toBe(true)
+  })
+
+  it('still installs cleanly when the userns probe succeeds', async () => {
+    // Default fake-shell responder returns exit 0 for everything, so
+    // this is the happy path. Asserting it explicitly guards against
+    // a future change that would warn-by-default.
+    const c = await makeCtx()
+    const r = await claudeSandboxStep.run(c)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.message).not.toMatch(/seccomp/)
+    }
+    expect(c.logger.has('warn', 'user namespaces')).toBe(false)
   })
 })

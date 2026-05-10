@@ -495,6 +495,51 @@ CLAUDE_JAIL_REAL_BIN=/path/to/claude claude-jail …   # override the lookup
 
 Skipped silently when `bubblewrap` is not on `PATH`. Networking is intentionally **not** unshared (Anthropic API access). Use `--secure` for outbound network filtering instead.
 
+#### When `claude-jail` fails with "No permissions to create new namespace"
+
+`bwrap` needs to call `unshare(CLONE_NEWUSER)`, which Docker's default
+seccomp profile drops for non-root processes. The `claude:sandbox` step
+probes for this at init time and, when the syscall is blocked,
+installs the shim anyway but logs:
+
+```
+[warn] claude-jail installed at /home/vscode/.local/bin/claude-jail, but the
+container blocks unprivileged user namespaces …
+```
+
+Day-to-day, just run `claude` directly — the Docker container is
+already your sandbox; `claude-jail` is the *inner* layer that masks
+credentials from the `claude` process itself. Useful when:
+
+- you keep a long-lived workspace shared across repos and want one
+  more boundary before letting Claude rip;
+- you're auditing genuinely-untrusted code and want the OAuth /
+  `gh` / cloud credentials hidden from the very thing reading the
+  source.
+
+If those apply, three ways to enable it (most → least restrictive):
+
+1. **Custom seccomp profile** — start from Docker's
+   [default-seccomp.json](https://github.com/moby/moby/blob/master/profiles/seccomp/default.json)
+   and add `unshare` to the allow-list. Reference it from
+   `runArgs`:
+   ```jsonc
+   "runArgs": [
+     "--cap-add=NET_ADMIN",
+     "--security-opt=seccomp=/path/to/userns-allowed.json"
+   ]
+   ```
+2. **`--security-opt seccomp=unconfined`** — disables *all* seccomp
+   filtering. Easy, but you lose the host-protection seccomp gives
+   for everything else, not just `unshare`.
+3. **`mydevc validate` will reject `--privileged`/`SYS_ADMIN`** — do
+   not reach for those to "fix" claude-jail; they undo the read-only
+   `.devcontainer/` mount that keeps the sandbox honest.
+
+The shim sits on disk regardless, so the moment you flip a profile
+and `mydevc rebuild`, `claude-jail` starts working without
+re-running init.
+
 ### Network isolation — `--secure`
 
 Pass `--secure` to `template` or `.` to drop `firewall-allowlist.txt` into `.devcontainer/`. The container's `postStartCommand` then runs `setup-firewall.sh` on every start, applying iptables rules that:

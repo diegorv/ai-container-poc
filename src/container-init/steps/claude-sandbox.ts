@@ -100,13 +100,29 @@ exec bwrap \\
  *
  * Skipped silently when `bwrap` is not on PATH (so the step is a no-op
  * for any image that strips bubblewrap out of the base).
+ *
+ * If `bwrap` is present but the container's seccomp profile (or kernel)
+ * blocks `unshare(CLONE_NEWUSER)` — Docker's default seccomp does
+ * exactly this for non-root — the shim is still installed, but a
+ * warning is logged so the operator isn't surprised when they run
+ * `claude-jail` and hit "No permissions to create new namespace".
+ * Installing it anyway means the operator can later relax the
+ * profile (custom seccomp / `--security-opt`) without re-running init.
  */
 export const claudeSandboxStep: Step = {
   name: 'claude:sandbox',
-  async run({ fs, homeDir, shell }) {
+  async run({ fs, homeDir, logger, shell }) {
     if (!(await shell.which('bwrap'))) {
       return { ok: true, message: 'bubblewrap not installed, claude-jail skipped' }
     }
+
+    // Cheapest probe that exercises the same syscall claude-jail will
+    // need: ask bwrap to create a user namespace and exit immediately.
+    // Exit 0 ⇒ namespaces are allowed; non-zero (typically with
+    // "No permissions to create new namespace" on stderr) ⇒ blocked
+    // by seccomp or kernel policy.
+    const probe = await shell.exec('bwrap', ['--unshare-user', 'true'])
+    const usernsBlocked = probe.exitCode !== 0
 
     const installDir = joinPath(homeDir, LOCAL_SEG, BIN_SEG)
     const installPath = joinPath(installDir, CLAUDE_JAIL_SEG)
@@ -114,6 +130,16 @@ export const claudeSandboxStep: Step = {
     await fs.mkdir(installDir, { recursive: true })
     await fs.writeFile(installPath, SHIM)
     await fs.chmod(installPath, SHIM_MODE)
+
+    if (usernsBlocked) {
+      logger.warn(
+        `claude-jail installed at ${installPath}, but the container blocks unprivileged user namespaces (Docker's default seccomp profile drops unshare(CLONE_NEWUSER), or the kernel doesn't allow it). Run \`claude\` directly for now; see README "Inner sandbox — claude-jail" to relax the policy if you really need it.`,
+      )
+      return {
+        ok: true,
+        message: `claude-jail installed at ${installPath} (kernel/seccomp blocks bwrap; use \`claude\` directly)`,
+      }
+    }
 
     return { ok: true, message: `claude-jail installed at ${installPath}` }
   },
