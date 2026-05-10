@@ -105,7 +105,8 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://fnm.vercel.app/install -o /tmp
   export PATH="$FNM_DIR:$PATH" && \
   eval "$(fnm env)" && \
   fnm install ${NODE_VERSION} && \
-  fnm default ${NODE_VERSION}
+  fnm default ${NODE_VERSION} && \
+  corepack enable
 
 # Install Oh My Zsh. zsh-in-docker.sh is fetched from a tag-pinned
 # release URL; pass ZSH_IN_DOCKER_SHA256 to verify the script before
