@@ -703,7 +703,7 @@ pnpm check                # biome + tsc + vitest run
 GitHub Actions runs the same checks plus:
 
 - `pnpm audit --audit-level=high` — fails on known high/critical vulns in installed deps.
-- Bundle-size budget — `dist/cli/index.js` < 60KB, `dist/container-init/index.js` < 20KB.
+- Bundle-size budget — `dist/cli/index.js` < 100KB (CLI keeps deps external), `dist/container-init/index.js` < 450KB (inlines `execa`+`zod` so the in-container binary is self-contained — see `tsup.config.ts`).
 - v8 coverage with thresholds (lines/funcs/statements ≥ 85%, branches ≥ 75%); the `coverage/` folder is uploaded as an artifact.
 - `actions/dependency-review-action` on PRs — blocks new dependencies with high vulns or licenses outside the allow-list.
 - When `renovate.json` changes — `renovate-config-validator`.
@@ -714,12 +714,13 @@ CLI output is auto-styled: when stderr is a TTY, `mydevc` prints colored level g
 
 | Component | Details |
 |---|---|
-| Base | Ubuntu 24.04, Node.js 22, Python 3.13 (via uv), zsh + Oh My Zsh |
-| User | `vscode` (passwordless sudo), `WORKDIR=/workspace` |
+| Base | Ubuntu 24.04, Node.js 22 (corepack enabled → `pnpm`/`yarn` ready), Python 3.13 (via uv), zsh + Oh My Zsh |
+| Container name | `devc-${localWorkspaceFolderBasename}` (so `docker ps` shows `devc-myproj`, not `festive_leavitt`) |
+| User | `vscode`, `WORKDIR=/workspace`. Passwordless sudo is restricted to `setup-firewall.sh` + `chown-managed.sh` only (the MS base's broad NOPASSWD:ALL is replaced — see `templates/sudoers.mydevc`). |
 | Tools | `rg`, `fd`, `tmux`, `fzf`, `delta`, `iptables`, `ipset`, `bubblewrap`, `ast-grep` |
 | Persistent volumes | `/commandhistory`, `/home/vscode/.claude`, `/home/vscode/.config/gh` |
 | Read-only host mounts | `~/.gitconfig`, `.devcontainer/`, `.git/config`, `.git/hooks` |
-| Auto-configured | `bypassPermissions=true`, `~/.tmux.conf`, `~/.gitconfig.local` (with delta), Anthropic + Trail of Bits skills |
+| Auto-configured | `bypassPermissions=true`, `~/.tmux.conf`, `~/.gitconfig.local` (with delta), `~/.local/bin/claude-jail` (opt-in inner sandbox), Anthropic + Trail of Bits skills |
 
 Persistent volumes survive `mydevc rebuild` so your shell history, Claude config, and `gh` login persist between rebuilds. `mydevc destroy` removes them all.
 
@@ -744,6 +745,42 @@ sudo chown -R $(id -u):$(id -g) ~/.config/gh
 ```
 
 This is what `mydevc-init`'s `fs:ownership` step does automatically — but only if it runs before you try to authenticate.
+
+### `pnpm` / `yarn` "command not found" on an old image
+
+Recent images enable corepack at build time, so `pnpm` and `yarn` are
+available without `npm install -g`. If you're on an older image
+(pre-`631bba7`), do one of:
+
+```bash
+mydevc rebuild        # pulls the new Dockerfile, gets corepack baked in
+# or, in the running container:
+corepack enable
+```
+
+`corepack` ships with Node 22; it reads `packageManager` from your
+project's `package.json` and downloads the matching version on first
+use.
+
+### First `mydevc up` shows a spinner for minutes with no output
+
+That's `docker buildx` pulling the Ubuntu base + 20 build layers on a
+cold cache. Run with `-v` to stream the output live:
+
+```bash
+mydevc -v up
+```
+
+After the first build the layers are cached and subsequent `up`s are
+seconds.
+
+### "Expected double-quoted property name" parsing devcontainer.json
+
+That used to happen when the file had `//` comments. Since `598f74c`,
+mydevc parses devcontainer.json as JSONC (the spec-compliant format)
+via `jsonc-parser`, so comments and trailing commas are accepted. If
+you still see it, your file has a different syntax error — `mydevc
+validate` will point at the offset.
 
 ## Credit
 
