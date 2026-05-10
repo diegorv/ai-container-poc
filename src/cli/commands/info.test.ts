@@ -154,4 +154,45 @@ describe('info command', () => {
     expect(deps.logger.has('info', 'Custom mounts (1)')).toBe(true)
     expect(deps.logger.has('info', 'source=/h/data,target=/data,type=bind')).toBe(true)
   })
+
+  it('reports firewall = not configured when allowlist is absent', async () => {
+    const deps = buildDeps()
+    // Need .devcontainer/ for the rest of the summary to render — the
+    // firewall line lives at the bottom of the body, not the early-out.
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{}')
+    await info({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('info', 'Firewall:        not configured')).toBe(true)
+  })
+
+  it('reports firewall = active and counts entries', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(
+      p('/proj/.devcontainer/firewall-allowlist.txt'),
+      [
+        '# allowlist',
+        'api.anthropic.com',
+        'github.com',
+        '',
+        '# inline comment dropped',
+        'registry.npmjs.org   # node deps',
+      ].join('\n'),
+    )
+    await info({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('info', 'Firewall:        active (3 hosts allowlisted)')).toBe(true)
+  })
+
+  it('exposes firewall status in --json', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    await deps.fs.writeFile(p('/proj/.devcontainer/firewall-allowlist.txt'), 'api.anthropic.com\n')
+    const out = await info({ cwd: '/proj', json: true }, deps)
+    const parsed = JSON.parse(out as string)
+    expect(parsed.firewall).toEqual({
+      configured: true,
+      entryCount: 1,
+      allowlistPath: '/proj/.devcontainer/firewall-allowlist.txt',
+    })
+  })
 })

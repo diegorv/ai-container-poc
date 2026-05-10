@@ -18,6 +18,22 @@ export const ContainerInfoSummarySchema = z.object({
 
 export type ContainerInfoSummary = z.infer<typeof ContainerInfoSummarySchema>
 
+/**
+ * Reflects whether `--secure` mode is wired up for this workspace.
+ * `configured`: a `firewall-allowlist.txt` is present in `.devcontainer/`,
+ * so `setup-firewall.sh` will lock egress on every container start.
+ * `entryCount` is the count of valid host/IP/CIDR lines (comments and
+ * blank lines stripped) — surfaces a syntax error in the allowlist as
+ * a 0 even when the file exists.
+ */
+export const FirewallSummarySchema = z.object({
+  configured: z.boolean(),
+  entryCount: z.number().int().nonnegative(),
+  allowlistPath: z.string().nullable(),
+})
+
+export type FirewallSummary = z.infer<typeof FirewallSummarySchema>
+
 export const InfoSummarySchema = z.object({
   workspaceFolder: z.string(),
   projectName: z.string(),
@@ -25,6 +41,7 @@ export const InfoSummarySchema = z.object({
   hasDevcontainerDir: z.boolean(),
   container: ContainerInfoSummarySchema.nullable(),
   customMounts: z.array(MountSchema),
+  firewall: FirewallSummarySchema,
 })
 
 export type InfoSummary = z.infer<typeof InfoSummarySchema>

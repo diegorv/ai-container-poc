@@ -1,7 +1,9 @@
 import { UID_IMAGE_SUFFIX } from '@/config'
+import { workspaceAllowlistPath } from '@/core/devcontainer/firewall-snapshot'
 import { extractCustomMounts } from '@/core/devcontainer/manipulate-mounts'
 import { devcontainerDirOf, devcontainerJsonOf } from '@/core/paths'
 import { computeProjectId } from '@/core/project/compute-project-id'
+import { parseFirewallAllowlist } from '@/core/security/firewall-allowlist'
 import { operatorPath } from '@/core/security/path'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import { type InfoSummary, InfoSummarySchema } from '@/schemas/info-summary'
@@ -20,6 +22,18 @@ async function collectSummary(args: InfoArgs, deps: CommandDeps): Promise<InfoSu
   const dcDir = devcontainerDirOf(cwd)
   const dcJson = devcontainerJsonOf(cwd)
 
+  const allowlistPath = workspaceAllowlistPath(cwd)
+  const allowlistExists = await fs.exists(allowlistPath)
+  let allowlistEntryCount = 0
+  if (allowlistExists) {
+    try {
+      const parsed = parseFirewallAllowlist(await fs.readFile(allowlistPath))
+      allowlistEntryCount = parsed.entries.length
+    } catch (err) {
+      deps.logger.debug(`info: could not parse ${allowlistPath}: ${(err as Error).message}`)
+    }
+  }
+
   const summary: InfoSummary = {
     workspaceFolder: cwd,
     projectName: project.projectName,
@@ -27,6 +41,11 @@ async function collectSummary(args: InfoArgs, deps: CommandDeps): Promise<InfoSu
     hasDevcontainerDir: await fs.exists(dcDir),
     container: null,
     customMounts: [],
+    firewall: {
+      configured: allowlistExists,
+      entryCount: allowlistEntryCount,
+      allowlistPath: allowlistExists ? allowlistPath : null,
+    },
   }
 
   if (!summary.hasDevcontainerDir) return summary
@@ -97,6 +116,15 @@ function printSummary(s: InfoSummary, deps: CommandDeps): void {
     for (const m of s.customMounts) {
       logger.info(`  - ${typeof m === 'string' ? m : `${m.source} → ${m.target} (${m.type})`}`)
     }
+  }
+
+  logger.info('')
+  if (s.firewall.configured) {
+    logger.info(
+      `Firewall:        active (${s.firewall.entryCount} host${s.firewall.entryCount === 1 ? '' : 's'} allowlisted)`,
+    )
+  } else {
+    logger.info('Firewall:        not configured (open network)')
   }
 }
 
