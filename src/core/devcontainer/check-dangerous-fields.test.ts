@@ -38,6 +38,50 @@ describe('findDangerousFields', () => {
     expect(findDangerousFields({ containerUser: 'vscode' })).toEqual([])
   })
 
+  // Linux usernames are case-sensitive — `Vscode` and `VSCODE` are
+  // distinct accounts that won't match the `vscode` user the
+  // template's Dockerfile sets up. The check must reject anything
+  // other than the literal `vscode` to avoid silently elevating to
+  // (or being downgraded to) some other UID with whatever capabilities
+  // the kernel decides.
+  it.each(['Vscode', 'VSCODE', 'vscode '])(
+    'flags case- or whitespace-mismatched containerUser %s',
+    (user) => {
+      const findings = findDangerousFields({ containerUser: user })
+      expect(findings).toHaveLength(1)
+      expect(findings[0]?.field).toBe('containerUser')
+    },
+  )
+
+  it.each(['0', '1000', 'root', 'admin', 'node'])(
+    'flags numeric or non-vscode containerUser %s',
+    (user) => {
+      const findings = findDangerousFields({ containerUser: user })
+      expect(findings).toHaveLength(1)
+      expect(findings[0]?.field).toBe('containerUser')
+    },
+  )
+
+  it('flags an empty containerUser as not equal to vscode', () => {
+    const findings = findDangerousFields({ containerUser: '' })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.field).toBe('containerUser')
+  })
+
+  // Cyrillic 'е' (U+0435) and 'с' (U+0441) look identical to Latin
+  // 'e' and 'c'. A devcontainer.json that visually says "vscode"
+  // could carry confusables and resolve to a different POSIX user
+  // entirely. The strict equality check naturally rejects these.
+  it('flags a containerUser with unicode confusables', () => {
+    const findings = findDangerousFields({ containerUser: 'vsсоde' })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.field).toBe('containerUser')
+  })
+
+  it('accepts containerUser undefined (no override at all)', () => {
+    expect(findDangerousFields({})).toEqual([])
+  })
+
   it('flags a string bind mount whose source is /etc', () => {
     const findings = findDangerousFields({
       mounts: ['source=/etc,target=/host-etc,type=bind'],
