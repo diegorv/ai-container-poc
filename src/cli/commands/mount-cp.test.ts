@@ -140,4 +140,34 @@ describe('cp command', () => {
       cp({ cwd: '/proj', containerPath: '/workspace/foo', hostPath: '-rf' }, deps),
     ).rejects.toThrow(/starts with '-'/)
   })
+
+  it('rejects a hostPath that contains ..', async () => {
+    const deps = buildDeps()
+    await expect(
+      cp({ cwd: '/proj', containerPath: '/workspace/foo', hostPath: '../../etc/passwd' }, deps),
+    ).rejects.toThrow(/contains '\.\.'/)
+  })
+
+  it('rejects a hostPath with .. in the middle', async () => {
+    const deps = buildDeps()
+    await expect(
+      cp(
+        { cwd: '/proj', containerPath: '/workspace/foo', hostPath: '/host/sub/../../escape' },
+        deps,
+      ),
+    ).rejects.toThrow(/contains '\.\.'/)
+  })
+
+  it('does not reject a hostPath with .. inside a filename', async () => {
+    const deps = buildDeps()
+    deps.docker = createFakeDocker({
+      containers: [
+        { id: 'cid1', state: 'running', labels: { 'devcontainer.local_folder': '/proj' } },
+      ],
+    })
+    await cp({ cwd: '/proj', containerPath: '/workspace/foo', hostPath: '/host/file..bak' }, deps)
+    expect(deps.docker.cpCalls).toEqual([
+      { source: 'cid1:/workspace/foo', dest: '/host/file..bak' },
+    ])
+  })
 })
