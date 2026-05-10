@@ -36,7 +36,33 @@ describe('validate command', () => {
     const deps = buildDeps()
     await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
     await deps.fs.writeFile(p('/proj/.devcontainer/devcontainer.json'), '{ not json')
-    await expect(validate({ cwd: '/proj' }, deps)).rejects.toThrow(/not valid JSON/)
+    await expect(validate({ cwd: '/proj' }, deps)).rejects.toThrow(
+      /Failed to parse.*devcontainer\.json/,
+    )
+  })
+
+  it('accepts JSONC: line comments, block comments, trailing commas', async () => {
+    const deps = buildDeps()
+    await deps.fs.mkdir(p('/proj/.devcontainer'), { recursive: true })
+    // The devcontainer spec officially allows JSONC. Templates from
+    // upstream (microsoft/vscode-dev-containers) ship with comments
+    // explaining each field — they must validate cleanly.
+    await deps.fs.writeFile(
+      p('/proj/.devcontainer/devcontainer.json'),
+      `{
+        // top-level comment from the devcontainer-feature template
+        "name": "sandbox",
+        /* block comment with rationale */
+        "runArgs": [
+          "--cap-add=NET_ADMIN", // needed for iptables
+        ],
+        "mounts": [
+          "source=/h/data,target=/data,type=bind",
+        ],
+      }`,
+    )
+    await validate({ cwd: '/proj' }, deps)
+    expect(deps.logger.has('success', 'is valid')).toBe(true)
   })
 
   it('errors when runArgs contains SYS_ADMIN', async () => {

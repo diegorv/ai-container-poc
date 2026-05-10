@@ -3,6 +3,7 @@ import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { devcontainerJsonOf } from '@/core/paths'
 import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
+import { parseJsonc } from '@/lib/parse-jsonc'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -30,12 +31,9 @@ export async function validate(args: ValidateArgs, deps: CommandDeps): Promise<v
   }
 
   const raw = await fs.readFile(dcJson)
-  let json: unknown
-  try {
-    json = JSON.parse(raw)
-  } catch (err) {
-    throw new CliError(`devcontainer.json is not valid JSON: ${(err as Error).message}`)
-  }
+  // parseJsonc throws CliError already (with offsets + suggestion)
+  // when the file is unparseable; let that propagate as-is.
+  const json = parseJsonc(raw, dcJson)
 
   const parsed = DevcontainerConfigSchema.safeParse(json)
   if (!parsed.success) {

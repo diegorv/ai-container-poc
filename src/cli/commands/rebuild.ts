@@ -7,6 +7,7 @@ import { workspaceAllowlistPath } from '@/core/devcontainer/firewall-snapshot'
 import { devcontainerJsonOf } from '@/core/paths'
 import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
+import { parseJsonc } from '@/lib/parse-jsonc'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -21,7 +22,7 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
   const dcJson = devcontainerJsonOf(cwd)
 
   if (await fs.exists(dcJson)) {
-    const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
+    const parsed = DevcontainerConfigSchema.parse(parseJsonc(await fs.readFile(dcJson), dcJson))
     const check = checkNoSysAdmin(parsed)
     if (!check.ok) {
       throw new CliError(

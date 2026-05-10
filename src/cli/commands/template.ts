@@ -2,6 +2,7 @@ import { extractCustomMounts, mergeCustomMounts } from '@/core/devcontainer/mani
 import { devcontainerDirOf, devcontainerJsonOf } from '@/core/paths'
 import { joinPath, operatorPath, safeFilename } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
+import { parseJsonc } from '@/lib/parse-jsonc'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -72,7 +73,7 @@ export async function template(args: TemplateArgs, deps: CommandDeps): Promise<v
 
     if (await fs.exists(targetJson)) {
       const raw = await fs.readFile(targetJson)
-      const parsed = DevcontainerConfigSchema.parse(JSON.parse(raw))
+      const parsed = DevcontainerConfigSchema.parse(parseJsonc(raw, targetJson))
       preservedMounts = extractCustomMounts(parsed.mounts)
       if (preservedMounts.length > 0) {
         logger.info(`Preserving ${preservedMounts.length} custom mount(s)…`)
@@ -89,7 +90,7 @@ export async function template(args: TemplateArgs, deps: CommandDeps): Promise<v
 
   if (preservedMounts.length > 0) {
     const raw = await fs.readFile(targetJson)
-    const config = DevcontainerConfigSchema.parse(JSON.parse(raw))
+    const config = DevcontainerConfigSchema.parse(parseJsonc(raw, targetJson))
     const merged = mergeCustomMounts(config.mounts, preservedMounts)
     await fs.writeFile(targetJson, `${JSON.stringify({ ...config, mounts: merged }, null, 2)}\n`)
     logger.info('Custom mounts restored.')

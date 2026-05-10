@@ -365,6 +365,12 @@ mydevc clean --container --volumes --images --dry-run    # preview what would be
 
 Selecting nothing is an error (use `destroy` if you want everything). The `--cache` flag is global, the others are per-project.
 
+### `devcontainer.json` is parsed as JSONC
+
+The [devcontainer spec](https://containers.dev/implementors/json_reference/) allows comments (`// line` and `/* block */`) and trailing commas. mydevc reads `.devcontainer/devcontainer.json` with [`jsonc-parser`](https://www.npmjs.com/package/jsonc-parser) — the same library VS Code uses — so projects that ship a JSONC config (most templates from `microsoft/vscode-dev-containers` do) work cleanly with `mydevc up`/`info`/`validate`/`mount`. Strict-JSON-only files keep working unchanged.
+
+The templates mydevc itself ships are kept in strict JSON as a style choice (enforced by `tests/integration/templates-json.test.ts`); only the user-supplied config picks up JSONC support.
+
 ### Validating `devcontainer.json` — `mydevc validate`
 
 Plug into a project's CI to catch malformed devcontainer configs before someone tries to `mydevc up`:

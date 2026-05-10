@@ -5,6 +5,7 @@ import { devcontainerDirOf, devcontainerJsonOf } from '@/core/paths'
 import { computeProjectId } from '@/core/project/compute-project-id'
 import { parseFirewallAllowlist } from '@/core/security/firewall-allowlist'
 import { operatorPath } from '@/core/security/path'
+import { parseJsonc } from '@/lib/parse-jsonc'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import { type InfoSummary, InfoSummarySchema } from '@/schemas/info-summary'
 import type { CommandDeps } from '../deps'
@@ -70,7 +71,7 @@ async function collectSummary(args: InfoArgs, deps: CommandDeps): Promise<InfoSu
 
   if (await fs.exists(dcJson)) {
     try {
-      const parsed = DevcontainerConfigSchema.parse(JSON.parse(await fs.readFile(dcJson)))
+      const parsed = DevcontainerConfigSchema.parse(parseJsonc(await fs.readFile(dcJson), dcJson))
       summary.customMounts = extractCustomMounts(parsed.mounts)
     } catch (err) {
       deps.logger.debug(`info: could not parse ${dcJson}: ${(err as Error).message}`)

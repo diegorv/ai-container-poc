@@ -4,6 +4,7 @@ import { devcontainerJsonOf } from '@/core/paths'
 import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { hasJsoncSyntax } from '@/lib/jsonc-detect'
+import { parseJsonc } from '@/lib/parse-jsonc'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -52,7 +53,7 @@ export async function mount(args: MountArgs, deps: CommandDeps): Promise<void> {
       `${dcJson} appears to use JSONC (comments / trailing commas). Rewriting it will drop them. Consider editing the file manually if you want to preserve formatting.`,
     )
   }
-  const config = DevcontainerConfigSchema.parse(JSON.parse(raw))
+  const config = DevcontainerConfigSchema.parse(parseJsonc(raw, dcJson))
   const updatedMounts = addBindMount({
     mounts: config.mounts,
     hostPath: resolvedHost,
