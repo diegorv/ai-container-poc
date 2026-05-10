@@ -15,6 +15,7 @@ function buildDeps(fs: ReturnType<typeof createMemoryFs>): CommandDeps {
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
+    containerInitBundle: p('/tpl/container-init.js'),
     env: { HOME: p('/home/alice') },
     verbose: false,
   }
@@ -31,6 +32,7 @@ const TEMPLATE_DEVCONTAINER = JSON.stringify({
 const TEMPLATE_ZSHRC = 'export PS1="$ "\n'
 
 const TEMPLATE_FIREWALL = '# allowlist\napi.anthropic.com\ngithub.com\n'
+const CONTAINER_INIT_BUNDLE = '#!/usr/bin/env node\nconsole.log("init")\n'
 
 function seedTemplates(fs: ReturnType<typeof createMemoryFs>): void {
   fs.writeFile(p('/tpl/Dockerfile'), TEMPLATE_DOCKERFILE)
@@ -42,6 +44,7 @@ function seedTemplates(fs: ReturnType<typeof createMemoryFs>): void {
   fs.writeFile(p('/tpl/chown-managed.sh'), '#!/usr/bin/env bash\n')
   fs.writeFile(p('/tpl/sudoers.mydevc'), '# sudoers\n')
   fs.writeFile(p('/tpl/.dockerignore'), '.git\n')
+  fs.writeFile(p('/tpl/container-init.js'), CONTAINER_INIT_BUNDLE)
 }
 
 describe('template command', () => {
@@ -119,6 +122,31 @@ describe('template command', () => {
     await template({ cwd: '/proj', secure: true }, buildDeps(fs))
     expect(await fs.readFile(p('/proj/.devcontainer/firewall-allowlist.txt'))).toBe(
       TEMPLATE_FIREWALL,
+    )
+  })
+
+  it('copies the mydevc-init bundle into .devcontainer/dist/container-init/', async () => {
+    const fs = createMemoryFs()
+    await fs.mkdir(p('/proj'), { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
+    seedTemplates(fs)
+    await template({ cwd: '/proj' }, buildDeps(fs))
+    // Dockerfile's `COPY dist/container-init/index.js` resolves
+    // against .devcontainer/ as the build context.
+    expect(await fs.readFile(p('/proj/.devcontainer/dist/container-init/index.js'))).toBe(
+      CONTAINER_INIT_BUNDLE,
+    )
+  })
+
+  it('throws a CliError when the bundle is missing', async () => {
+    const fs = createMemoryFs()
+    await fs.mkdir(p('/proj'), { recursive: true })
+    await fs.mkdir(p('/tpl'), { recursive: true })
+    seedTemplates(fs)
+    // Remove just the bundle to simulate a not-yet-built repo.
+    await fs.remove(p('/tpl/container-init.js'))
+    await expect(template({ cwd: '/proj' }, buildDeps(fs))).rejects.toThrow(
+      /mydevc-init bundle not found/,
     )
   })
 })

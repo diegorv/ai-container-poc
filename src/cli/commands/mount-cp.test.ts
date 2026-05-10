@@ -23,6 +23,7 @@ function buildDeps(): CommandDeps & {
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
+    containerInitBundle: p('/tpl/container-init.js'),
     env: { HOME: p('/home/alice') },
     verbose: false,
   }

@@ -25,6 +25,7 @@ function buildDeps(env: Record<string, string> = {}): CommandDeps & {
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
+    containerInitBundle: p('/tpl/container-init.js'),
     env: { HOME: p('/home/alice'), ...env },
     verbose: false,
   }

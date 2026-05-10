@@ -21,6 +21,14 @@ export interface CommandDeps {
   prompt: Prompt
   /** Absolute path to the bundled templates folder (Dockerfile, .zshrc, …). */
   templatesDir: AbsolutePath
+  /**
+   * Absolute path to the compiled `mydevc-init` bundle. `mydevc
+   * template` copies it into `.devcontainer/dist/container-init/index.js`
+   * so the Dockerfile's `COPY` directive finds it next to the build
+   * context. The bundle is produced by `pnpm build` and ships with the
+   * package.
+   */
+  containerInitBundle: AbsolutePath
   env: Env
   /**
    * True when the operator passed `-v|--verbose`. Long-running commands

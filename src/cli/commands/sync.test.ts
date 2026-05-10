@@ -60,6 +60,7 @@ function buildSyncDeps(opts: SyncFakeOpts): CommandDeps & {
     logger: createMemoryLogger(),
     prompt: createScriptedPrompt([true]),
     templatesDir: p('/tpl'),
+    containerInitBundle: p('/tpl/container-init.js'),
     env: { HOME: p('/home/alice') },
     verbose: false,
   }
@@ -75,6 +76,7 @@ describe('sync command', () => {
       logger: createMemoryLogger(),
       prompt: createScriptedPrompt([true]),
       templatesDir: p('/tpl'),
+      containerInitBundle: p('/tpl/container-init.js'),
       env: { HOME: p('/home/alice') },
       verbose: false,
     }

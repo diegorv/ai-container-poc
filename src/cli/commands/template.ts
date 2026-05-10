@@ -1,6 +1,7 @@
 import { extractCustomMounts, mergeCustomMounts } from '@/core/devcontainer/manipulate-mounts'
 import { devcontainerDirOf, devcontainerJsonOf } from '@/core/paths'
 import { joinPath, operatorPath, safeFilename } from '@/core/security/path'
+import { CliError } from '@/lib/cli-error'
 import { DevcontainerConfigSchema } from '@/schemas/devcontainer-config'
 import type { CommandDeps } from '../deps'
 
@@ -32,6 +33,16 @@ const TEMPLATE_FILES = [
 ] as const
 const FIREWALL_ALLOWLIST = 'firewall-allowlist.txt'
 
+// `templates/Dockerfile` does
+//   COPY --chown=vscode:vscode dist/container-init/index.js /opt/mydevc/...
+// and `devcontainer up` uses .devcontainer/ as the build context, so
+// the bundled mydevc-init binary has to land at the same relative
+// path inside .devcontainer/. These segments are validated as
+// SafeFilenames at module load.
+const DIST_SEG = safeFilename('dist')
+const CONTAINER_INIT_SEG = safeFilename('container-init')
+const CONTAINER_INIT_INDEX_SEG = safeFilename('index.js')
+
 /**
  * Ports `cmd_template` from install.sh.
  *
@@ -42,7 +53,7 @@ const FIREWALL_ALLOWLIST = 'firewall-allowlist.txt'
  * 3. Merge the preserved mounts back into the new devcontainer.json.
  */
 export async function template(args: TemplateArgs, deps: CommandDeps): Promise<void> {
-  const { fs, logger, prompt, templatesDir } = deps
+  const { containerInitBundle, fs, logger, prompt, templatesDir } = deps
   const cwd = operatorPath(args.cwd)
   const targetDir = devcontainerDirOf(cwd)
   const targetJson = devcontainerJsonOf(cwd)
@@ -83,6 +94,21 @@ export async function template(args: TemplateArgs, deps: CommandDeps): Promise<v
     await fs.writeFile(targetJson, `${JSON.stringify({ ...config, mounts: merged }, null, 2)}\n`)
     logger.info('Custom mounts restored.')
   }
+
+  // Copy the compiled mydevc-init bundle next to the Dockerfile so the
+  // build context contains it. Without this, `devcontainer up` fails
+  // with "failed to compute cache key" on the
+  // `COPY dist/container-init/index.js` directive in the Dockerfile.
+  const bundleDir = joinPath(targetDir, DIST_SEG, CONTAINER_INIT_SEG)
+  await fs.mkdir(bundleDir, { recursive: true })
+  const bundleDest = joinPath(bundleDir, CONTAINER_INIT_INDEX_SEG)
+  if (!(await fs.exists(containerInitBundle))) {
+    throw new CliError(`Built mydevc-init bundle not found at ${containerInitBundle}.`, {
+      suggestion:
+        'Run `pnpm build` in the mydevc repo (or reinstall mydevc) so dist/container-init/index.js exists, then re-run `mydevc template`.',
+    })
+  }
+  await fs.copy(containerInitBundle, bundleDest)
 
   if (args.secure) {
     const seg = safeFilename(FIREWALL_ALLOWLIST)

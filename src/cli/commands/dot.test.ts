@@ -24,6 +24,7 @@ describe('dot command', () => {
     await fs.writeFile(p('/tpl/chown-managed.sh'), '#!/usr/bin/env bash\n')
     await fs.writeFile(p('/tpl/sudoers.mydevc'), '# sudoers\n')
     await fs.writeFile(p('/tpl/.dockerignore'), '.git\n')
+    await fs.writeFile(p('/tpl/container-init.js'), '#!/usr/bin/env node\n')
     await fs.mkdir(p('/proj'), { recursive: true })
 
     const devcontainer = createFakeDevcontainer()
@@ -35,6 +36,7 @@ describe('dot command', () => {
       logger: createMemoryLogger(),
       prompt: createScriptedPrompt(),
       templatesDir: p('/tpl'),
+      containerInitBundle: p('/tpl/container-init.js'),
       env: { HOME: p('/home/alice') },
       verbose: false,
     }

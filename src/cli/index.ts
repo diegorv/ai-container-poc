@@ -42,6 +42,16 @@ function resolveTemplatesDir(): AbsolutePath {
   return operatorPath(resolve(here, '..', '..', 'templates'))
 }
 
+function resolveContainerInitBundle(): AbsolutePath {
+  // dist/cli/index.js     → ../container-init/index.js
+  // src/cli/index.ts (tsx) → ../../dist/container-init/index.js
+  // We resolve through the repo root so both modes hit the same
+  // built bundle. The file must exist at template-time; `pnpm build`
+  // produces it.
+  const here = dirname(fileURLToPath(import.meta.url))
+  return operatorPath(resolve(here, '..', '..', 'dist', 'container-init', 'index.js'))
+}
+
 function buildDeps(verbosity: Verbosity): CommandDeps {
   const env = EnvSchema.parse(process.env)
   const docker = createCliDocker(execaShell)
@@ -55,6 +65,7 @@ function buildDeps(verbosity: Verbosity): CommandDeps {
     logger: createPrettyLogger({ level }),
     prompt: ttyPrompt,
     templatesDir: resolveTemplatesDir(),
+    containerInitBundle: resolveContainerInitBundle(),
     env,
     verbose: verbosity === 'verbose',
   }
