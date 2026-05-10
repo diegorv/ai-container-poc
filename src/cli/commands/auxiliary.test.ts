@@ -26,6 +26,7 @@ function buildDeps(env: Record<string, string> = {}): CommandDeps & {
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
     env: { HOME: p('/home/alice'), ...env },
+    verbose: false,
   }
 }
 

@@ -331,11 +331,15 @@ Each script knows the full command list and per-command flags (`--secure`, `--js
 Two global flags control logger output, available before any subcommand:
 
 ```bash
-mydevc -v rebuild        # debug logs + spinner internals
+mydevc -v rebuild        # debug logs + stream docker buildx output live
+mydevc -v up             # same — useful when the first build pulls a fresh image
 mydevc --quiet destroy   # only print failures
 ```
 
-Defaults to info-level. `--verbose` wins if both are passed.
+Defaults to info-level. `--verbose` wins if both are passed. `-v` also flips
+`up`/`rebuild` from "buffered + spinner" to "stdio inherited" so `docker buildx`
+progress lands on the terminal in real time — handy when a first-time pull is
+slow and the spinner would otherwise hide all the activity.
 
 ## Session sync for `/insights`
 

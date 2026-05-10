@@ -59,9 +59,17 @@ export async function up(args: UpArgs, deps: CommandDeps): Promise<void> {
     }
   }
 
-  await logger.withSpinner(`Starting devcontainer in ${cwd}`, () =>
-    devcontainer.up({ workspaceFolder: cwd }),
-  )
+  // In verbose mode, stream stdio so the operator sees `docker buildx`
+  // progress instead of a blank spinner. The spinner would also overwrite
+  // streamed output line by line, so skip it entirely in that branch.
+  if (deps.verbose) {
+    logger.info(`Starting devcontainer in ${cwd}`)
+    await devcontainer.up({ workspaceFolder: cwd, stream: true })
+  } else {
+    await logger.withSpinner(`Starting devcontainer in ${cwd}`, () =>
+      devcontainer.up({ workspaceFolder: cwd }),
+    )
+  }
 
   // Don't trust the in-container postStartCommand to apply the firewall
   // — a malicious devcontainer.json could override it. Re-run from the

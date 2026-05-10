@@ -16,6 +16,7 @@ function buildDeps(fs: ReturnType<typeof createMemoryFs>): CommandDeps {
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
     env: { HOME: p('/home/alice') },
+    verbose: false,
   }
 }
 

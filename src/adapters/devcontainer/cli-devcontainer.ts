@@ -42,6 +42,19 @@ export function createCliDevcontainer(
       await ensureBinary()
       const cmd = ['up', '--workspace-folder', args.workspaceFolder]
       if (args.removeExistingContainer) cmd.push('--remove-existing-container')
+      if (args.stream) {
+        // Stdio is inherited so `docker buildx` progress lands on the
+        // operator's terminal in real time. We trade the parsed
+        // containerId for visibility — no caller needs it today (up.ts
+        // and rebuild.ts only care about success/failure).
+        const r = await shell.execInteractive(bin, cmd)
+        if (r.exitCode !== 0) {
+          throw new Error(
+            `devcontainer up failed (exit ${r.exitCode}). See output above for details.`,
+          )
+        }
+        return { containerId: '' }
+      }
       const result = await shell.exec(bin, cmd)
       if (result.exitCode !== 0) {
         throw new Error(`devcontainer up failed (exit ${result.exitCode}): ${result.stderr}`)

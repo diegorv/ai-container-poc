@@ -55,9 +55,18 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
     }
   }
 
-  await logger.withSpinner(`Rebuilding devcontainer in ${cwd}`, () =>
-    devcontainer.up({ workspaceFolder: cwd, removeExistingContainer: true }),
-  )
+  if (deps.verbose) {
+    logger.info(`Rebuilding devcontainer in ${cwd}`)
+    await devcontainer.up({
+      workspaceFolder: cwd,
+      removeExistingContainer: true,
+      stream: true,
+    })
+  } else {
+    await logger.withSpinner(`Rebuilding devcontainer in ${cwd}`, () =>
+      devcontainer.up({ workspaceFolder: cwd, removeExistingContainer: true }),
+    )
+  }
 
   await enforceFirewall(cwd, { docker, fs, logger, home: env.HOME })
 }

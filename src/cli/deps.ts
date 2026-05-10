@@ -22,4 +22,11 @@ export interface CommandDeps {
   /** Absolute path to the bundled templates folder (Dockerfile, .zshrc, …). */
   templatesDir: AbsolutePath
   env: Env
+  /**
+   * True when the operator passed `-v|--verbose`. Long-running commands
+   * (`up`, `rebuild`) flip the underlying CLI from "buffer + parse" to
+   * "stream stdio straight to the terminal" so the operator sees `docker
+   * buildx` progress live instead of a blank spinner.
+   */
+  verbose: boolean
 }

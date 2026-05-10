@@ -61,6 +61,7 @@ function buildSyncDeps(opts: SyncFakeOpts): CommandDeps & {
     prompt: createScriptedPrompt([true]),
     templatesDir: p('/tpl'),
     env: { HOME: p('/home/alice') },
+    verbose: false,
   }
 }
 
@@ -75,6 +76,7 @@ describe('sync command', () => {
       prompt: createScriptedPrompt([true]),
       templatesDir: p('/tpl'),
       env: { HOME: p('/home/alice') },
+      verbose: false,
     }
     await expect(sync({ trusted: true }, deps)).rejects.toThrow(/No devcontainers found/)
   })

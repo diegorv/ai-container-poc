@@ -24,6 +24,7 @@ function buildDeps(): CommandDeps & {
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
     env: { HOME: p('/home/alice') },
+    verbose: false,
   }
 }
 

@@ -56,6 +56,7 @@ function buildDeps(verbosity: Verbosity): CommandDeps {
     prompt: ttyPrompt,
     templatesDir: resolveTemplatesDir(),
     env,
+    verbose: verbosity === 'verbose',
   }
 }
 

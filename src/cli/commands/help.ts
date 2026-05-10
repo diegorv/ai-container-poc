@@ -47,4 +47,5 @@ Examples:
     mydevc clean --volumes -f      Drop only the docker volumes
     mydevc clean --images --cache  Free disk: image + builder cache
     mydevc . --secure              Spin up with iptables allowlist active
+    mydevc -v up                   Stream docker buildx + lifecycle output live
 `

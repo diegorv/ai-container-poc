@@ -26,6 +26,7 @@ function buildDeps(
     prompt,
     templatesDir: p('/tpl'),
     env: { HOME: p('/home/alice') },
+    verbose: false,
   }
 }
 

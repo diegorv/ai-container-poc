@@ -32,6 +32,7 @@ function buildDeps(opts: BuildOptions = {}): CommandDeps & {
     prompt: createScriptedPrompt(),
     templatesDir: p('/tpl'),
     env: { HOME: p('/home/alice') },
+    verbose: false,
   }
 }
 
@@ -63,6 +64,13 @@ describe('up', () => {
     await up({ cwd: '/proj' }, deps)
     expect(deps.logger.has('warn', 'Lifecycle hook')).toBe(true)
   })
+
+  it('forwards stream=true to the devcontainer adapter when verbose', async () => {
+    const deps = buildDeps()
+    deps.verbose = true
+    await up({ cwd: '/proj' }, deps)
+    expect(deps.devcontainer.upCalls).toEqual([{ workspaceFolder: '/proj', stream: true }])
+  })
 })
 
 describe('rebuild', () => {
@@ -71,6 +79,15 @@ describe('rebuild', () => {
     await rebuild({ cwd: '/proj' }, deps)
     expect(deps.devcontainer.upCalls).toEqual([
       { workspaceFolder: '/proj', removeExistingContainer: true },
+    ])
+  })
+
+  it('forwards stream=true with removeExistingContainer when verbose', async () => {
+    const deps = buildDeps()
+    deps.verbose = true
+    await rebuild({ cwd: '/proj' }, deps)
+    expect(deps.devcontainer.upCalls).toEqual([
+      { workspaceFolder: '/proj', removeExistingContainer: true, stream: true },
     ])
   })
 })
