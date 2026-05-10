@@ -46,7 +46,7 @@ mydevc .         # template + up
 mydevc shell     # zsh inside the container
 ```
 
-VS Code / Cursor: install the Dev Containers extension, run `mydevc template` (or copy `templates/` manually into `.devcontainer/`), then "Reopen in Container".
+VS Code / Cursor: install the Dev Containers extension, run `mydevc template` (or copy `templates/` manually into `.devcontainer/`), then "Reopen in Container". The "Working in VS Code / Cursor" section below has the full picture if you've never used Dev Containers before.
 
 ## Usage patterns — trusted vs. untrusted code
 
@@ -203,6 +203,70 @@ mydevc destroy -f && cd ~ && rm -rf /tmp/sandbox/repo
 | `mydevc sync` | Useful — aggregated `/insights` | Usually skip — sessions die with the sandbox |
 
 The key split: **trust → share persistence; untrusted → disposable container, firewall on, mounts minimal**.
+
+## Working in VS Code / Cursor
+
+You can drive a mydevc container from the command line alone (`mydevc shell` + your favourite editor on the host) or you can have your IDE jump into the container with you. Both are first-class — pick whichever fits the task.
+
+### Three ways to develop
+
+| Mode | What you do | When it shines |
+|---|---|---|
+| **CLI only** | `mydevc shell` in one tab, Vim/Cursor on the host editing the bind-mounted folder in another | Quick iterations, headless boxes, scripted workflows |
+| **Editor on host + CLI in container** | Cursor/Zed/VS Code open on the host as usual; long-running stuff (`pnpm dev`, `pnpm test --watch`, `claude`) runs inside via `mydevc shell` | Familiar editor UX, no IDE/extension juggling, recommended starting point |
+| **IDE inside the container** ("Reopen in Container") | Cursor/VS Code reopens the project so the IDE itself runs *inside* the container | Debuggers, language servers, formatters, and Claude Code's IDE extension all live inside the sandbox |
+
+### What "Reopen in Container" actually does
+
+VS Code and Cursor both ship the **Dev Containers** extension (`ms-vscode-remote.remote-containers` for VS Code, `anysphere.remote-containers` for Cursor). They speak the same `devcontainer.json` spec mydevc speaks, so they cooperate cleanly:
+
+1. **The IDE installs `vscode-server` inside the container** (one-time, ~80 MB pull on first open). Your local IDE binary becomes a *thin client* that talks to the server over a forwarded socket.
+2. **Extensions split in two**:
+   - "UI" extensions (themes, keybindings, vim emulation) keep running locally on macOS.
+   - "Workspace" extensions (language servers, debuggers, formatters, `anthropic.claude-code`) install **inside the container**. The set is driven by `customizations.vscode.extensions` in your `templates/devcontainer.json`.
+3. **The integrated terminal becomes a shell inside the container** — `~/$` is `/home/vscode`, `pwd` is `/workspace`, `pnpm` resolves to the container's binary. You don't need `mydevc shell` while reopened.
+4. **Debugger, IntelliSense, formatter — all run inside.** Breakpoints in `pnpm dev` are hit from the container's Node, not your host's.
+5. **Port forwarding is automatic.** A server you start on `localhost:3000` inside is reachable at `localhost:3000` on macOS (Dev Containers wires the tunnel; no `docker run -p` needed).
+6. **`mydevc` commands keep working** from the host terminal. `mydevc info`, `mydevc logs -f`, `mydevc down`, `mydevc destroy -f` operate on the same container the IDE attached to — they read the `devcontainer.local_folder` label, identical to what the Dev Containers extension uses.
+
+### What does *not* change
+
+- **Files live on the host filesystem.** `/workspace` inside is `${localWorkspaceFolder}` outside (delegated bind mount). Closing the IDE doesn't move anything; uninstalling the IDE doesn't lose work; `git log` shows the same history whether you ran `git` from the host shell or the container's terminal.
+- **Git identity is the host's.** `~/.gitconfig` is mounted read-only inside; commits use your real `user.name`/`user.email`.
+- **SSH agent is forwarded.** `git push` works from inside the container without copying private keys; the OS keychain stays on macOS.
+- **Volumes survive `mydevc down` / IDE quit.** History, Claude config, and `gh` auth persist even if you close VS Code, then reopen tomorrow with `mydevc up`.
+
+### Pitfalls and gotchas
+
+- **One devcontainer per workspace.** Reopen-in-Container picks the `.devcontainer/devcontainer.json` next to the workspace root. If you point Cursor at `~/dev` and use the shared-workspace pattern, *every* repo under it is in scope of the same container — handy for cross-repo work, scary for an audit.
+- **Don't run `mydevc up` and "Reopen in Container" twice in parallel.** Both commands call `devcontainer up`; running them simultaneously can race on image build. Bring it up once (either way) and let the other tool attach to the running container.
+- **`mydevc validate` is your friend on a foreign repo.** Run it before clicking "Reopen in Container" — both VS Code's and mydevc's `up` happily honour `runArgs`/`mounts` from `devcontainer.json`, including ones a malicious repo could ship. `mydevc validate` rejects `SYS_ADMIN`/`--privileged`/dangerous mounts before the container starts.
+- **Extensions list is part of the template.** Edit `templates/devcontainer.json` → `customizations.vscode.extensions` (then `mydevc rebuild`) to lock in the language servers and helpers your team should always have inside the sandbox. Default ships with `anthropic.claude-code`.
+- **First reopen is slow.** vscode-server downloads inside the container (~80 MB) on the first open of a fresh image. After that it caches in the named volume; subsequent reopens are seconds.
+
+### Switching between modes
+
+You can flip between CLI-only and IDE-attached at will — they share the same container.
+
+```bash
+# CLI-only:
+mydevc shell                                     # zsh inside
+
+# Promote to IDE-attached:
+# In VS Code/Cursor with the workspace open:
+#   Cmd+Shift+P → "Dev Containers: Reopen in Container"
+# (the IDE finds the running container by label and attaches)
+
+# Step back to CLI-only:
+# Close the remote window. Container keeps running.
+mydevc info                                      # still there
+
+# Stop everything (volumes preserved):
+mydevc down
+
+# Wipe the slate:
+mydevc destroy -f
+```
 
 ## Headless auth (optional)
 
