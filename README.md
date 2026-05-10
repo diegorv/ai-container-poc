@@ -303,6 +303,7 @@ mydevc clean [flags]          Granular cleanup: --container --volumes --images -
 mydevc self-install           Symlink mydevc into ~/.local/bin
 mydevc update                 git pull this repo
 mydevc completion <shell>     Print bash/zsh/fish completion script to stdout
+mydevc doctor [--json]        Pre-flight checks: docker, devcontainer CLI, Node, PATH, ssh-agent
 mydevc help                   Show this help
 ```
 
@@ -389,6 +390,29 @@ mydevc completion fish > ~/.config/fish/completions/mydevc.fish
 ```
 
 Each script knows the full command list and per-command flags (`--secure`, `--json`, `--tail`, `--dry-run`, etc.).
+
+### Pre-flight check — `mydevc doctor`
+
+First-install confusion typically comes from one of: Docker daemon down, `devcontainer` CLI not installed, Node too old, `~/.local/bin` missing from `PATH`, ssh-agent not running. Instead of seven different error messages spread across `up`, `self-install`, etc., one command reports them all at once with copy-pasteable fixes:
+
+```
+$ mydevc doctor
+✓ docker        29.0.0 (8 CPU, 16.0 GB, orbstack)
+✓ devcontainer  /usr/local/bin/devcontainer
+✓ node          v22.22.2
+✓ gitconfig     /Users/alice/.gitconfig
+⚠ PATH          /Users/alice/.local/bin not in PATH
+  → Add `export PATH="$HOME/.local/bin:$PATH"` to ~/.zshrc (or ~/.bashrc) so `mydevc self-install` works without a shell restart.
+✓ ssh-agent     SSH_AUTH_SOCK=/tmp/ssh-XXX/agent.123
+```
+
+Exit code is `1` if any check is `fail` (docker daemon, missing CLIs), `0` if everything is `ok` or only `warn`. `mydevc doctor --json` is shaped for CI:
+
+```bash
+$ mydevc doctor --json | jq -r '.checks[] | select(.status != "ok") | .name'
+PATH
+ssh-agent
+```
 
 ### Verbosity
 

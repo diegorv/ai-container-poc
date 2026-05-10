@@ -43,6 +43,7 @@ export type ParsedCommand =
     }
   | { name: 'self-install' }
   | { name: 'update' }
+  | { name: 'doctor'; json: boolean }
 
 export interface ParseContext {
   cwd: string
@@ -204,6 +205,8 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
       return { name: 'self-install' }
     case 'update':
       return { name: 'update' }
+    case 'doctor':
+      return { name: 'doctor', json: hasFlag(args, '--json') }
     default:
       throw new Error(`Unknown command: ${head}. Run 'mydevc help' for the full list.`)
   }

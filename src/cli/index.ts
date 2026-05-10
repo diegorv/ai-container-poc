@@ -15,6 +15,7 @@ import { clean } from './commands/clean'
 import { completion } from './commands/completion'
 import { cp } from './commands/cp'
 import { destroy } from './commands/destroy'
+import { doctor } from './commands/doctor'
 import { dot } from './commands/dot'
 import { down } from './commands/down'
 import { exec } from './commands/exec'
@@ -143,6 +144,8 @@ async function dispatch(cmd: ParsedCommand, deps: CommandDeps): Promise<number> 
     case 'update':
       await update({ sourceDir: repoRootDir() }, deps)
       return 0
+    case 'doctor':
+      return doctor(cmd, deps)
   }
 }
 

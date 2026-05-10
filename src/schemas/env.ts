@@ -18,6 +18,7 @@ export const EnvSchema = z
     TZ: z.string().optional(),
     PATH: z.string().optional(),
     SHELL: z.string().optional(),
+    SSH_AUTH_SOCK: z.string().optional(),
     CLAUDE_CODE_OAUTH_TOKEN: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
     CLAUDE_CONFIG_DIR: z.string().optional(),

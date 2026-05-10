@@ -28,6 +28,7 @@ Commands:
     self-install           Symlink mydevc into ~/.local/bin
     update                 Pull the latest mydevc from git
     completion <shell>     Print a bash/zsh/fish completion script to stdout
+    doctor [--json]        Run pre-flight checks (docker, devcontainer CLI, …)
     help                   Show this help message
 
 Examples:
@@ -48,4 +49,5 @@ Examples:
     mydevc clean --images --cache  Free disk: image + builder cache
     mydevc . --secure              Spin up with iptables allowlist active
     mydevc -v up                   Stream docker buildx + lifecycle output live
+    mydevc doctor                  Sanity-check docker / devcontainer / Node / PATH
 `

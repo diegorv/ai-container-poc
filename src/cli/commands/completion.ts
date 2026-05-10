@@ -22,6 +22,7 @@ const COMMANDS = [
   'self-install',
   'update',
   'completion',
+  'doctor',
   'help',
 ] as const
 
@@ -35,6 +36,7 @@ const FLAGS_BY_COMMAND: Record<string, readonly string[]> = {
   logs: ['-f', '--follow', '--tail'],
   clean: ['--container', '--volumes', '--images', '--cache', '-f', '--dry-run'],
   completion: ['bash', 'zsh', 'fish'],
+  doctor: ['--json'],
 }
 
 function bash(): string {
