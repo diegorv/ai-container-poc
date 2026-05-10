@@ -61,6 +61,22 @@ describe('parseArgs', () => {
     })
   })
 
+  it('strips a leading -- from exec command (matches install.sh:824)', () => {
+    expect(parseArgs(['exec', '--', 'ls', '-la'], ctx)).toEqual({
+      name: 'exec',
+      cwd: '/proj',
+      command: ['ls', '-la'],
+    })
+  })
+
+  it('only strips one leading -- from exec', () => {
+    expect(parseArgs(['exec', '--', '--', 'echo', 'hi'], ctx)).toEqual({
+      name: 'exec',
+      cwd: '/proj',
+      command: ['--', 'echo', 'hi'],
+    })
+  })
+
   it('parses mount with readonly flag', () => {
     expect(parseArgs(['mount', '/h/data', '/data', '--readonly'], ctx)).toEqual({
       name: 'mount',

@@ -123,8 +123,13 @@ export function parseArgs(argv: readonly string[], ctx: ParseContext): ParsedCom
       return { name: 'down', cwd: take(args) ?? ctx.cwd }
     case 'shell':
       return { name: 'shell', cwd: ctx.cwd }
-    case 'exec':
+    case 'exec': {
+      // Match install.sh:824 — drop a leading `--` so users can write
+      // `mydevc exec -- ls -la` to disambiguate flags from the command,
+      // without `--` itself ending up in argv passed to the container.
+      if (args[0] === '--') args.shift()
       return { name: 'exec', cwd: ctx.cwd, command: args }
+    }
     case 'upgrade':
       return { name: 'upgrade', cwd: ctx.cwd }
     case 'mount': {
