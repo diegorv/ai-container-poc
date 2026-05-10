@@ -12,13 +12,6 @@
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // `--name` gives the container a stable, project-scoped identity
-  // so `docker ps` shows `devc-<project>` instead of Docker's random
-  // `festive_leavitt`-style names. devcontainer's `--remove-existing-
-  // container` (used by `mydevc rebuild`) deletes the old one by name
-  // before recreating, so name collisions across `up`/`rebuild` are
-  // handled. Two checkouts of the same basename on one host would
-  // collide; rename one of them.
   "runArgs": ["--cap-add=NET_ADMIN", "--name=devc-${localWorkspaceFolderBasename}"],
   "init": true,
   "updateRemoteUserUID": true,
