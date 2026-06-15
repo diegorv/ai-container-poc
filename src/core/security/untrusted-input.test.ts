@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { untrust } from './brand'
 import {
-  UntrustedInputError,
   asHomeOrRootAbsolutePath,
   asPosixUserName,
   asSafeFilename,
@@ -9,6 +8,7 @@ import {
   assertNoNul,
   assertPosixUserName,
   assertSafeFilename,
+  UntrustedInputError,
 } from './untrusted-input'
 
 const u = (v: string) => untrust(v, 'test')

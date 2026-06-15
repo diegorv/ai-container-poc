@@ -17,11 +17,11 @@ const SHIM = `#!/bin/sh
 # Defense-in-depth on top of mydevc's outer Docker container. The
 # Docker container already isolates the host; this inner sandbox
 # reduces what \`claude\` can see *inside* the container:
-#   * \$PWD                                          rw  (the project)
+#   * $PWD                                          rw  (the project)
 #   * everything else /                              ro  (system tools)
-#   * \$HOME/.claude/{credentials,.credentials}.json masked  (OAuth token hidden)
-#   * \$HOME/.config/gh/hosts.yml                    masked  (gh token hidden)
-#   * \$HOME/.aws .azure .gcp .ssh                   masked by tmpfs
+#   * $HOME/.claude/{credentials,.credentials}.json masked  (OAuth token hidden)
+#   * $HOME/.config/gh/hosts.yml                    masked  (gh token hidden)
+#   * $HOME/.aws .azure .gcp .ssh                   masked by tmpfs
 #   * fresh /proc, /dev, /tmp; new pid/ipc/uts/user namespaces
 #   * network kept (claude needs api.anthropic.com)
 #
@@ -34,7 +34,7 @@ const SHIM = `#!/bin/sh
 set -eu
 
 if [ "\${CLAUDE_JAIL_DISABLE:-0}" = "1" ]; then
-  exec claude "\$@"
+  exec claude "$@"
 fi
 
 if ! command -v bwrap >/dev/null 2>&1; then
@@ -43,28 +43,28 @@ if ! command -v bwrap >/dev/null 2>&1; then
 fi
 
 REAL_CLAUDE="\${CLAUDE_JAIL_REAL_BIN:-}"
-if [ -z "\$REAL_CLAUDE" ]; then
+if [ -z "$REAL_CLAUDE" ]; then
   for c in \\
-      "\$HOME/.local/share/claude/bin/claude" \\
-      "\$HOME/.claude/local/claude" \\
+      "$HOME/.local/share/claude/bin/claude" \\
+      "$HOME/.claude/local/claude" \\
       "/usr/local/bin/claude"; do
-    if [ -x "\$c" ]; then REAL_CLAUDE="\$c"; break; fi
+    if [ -x "$c" ]; then REAL_CLAUDE="$c"; break; fi
   done
 fi
 # PATH fallback, with a recursion guard against ourselves.
-if [ -z "\$REAL_CLAUDE" ]; then
-  candidate="\$(command -v claude 2>/dev/null || true)"
-  if [ -n "\$candidate" ] && [ "\$candidate" != "\$0" ]; then
-    REAL_CLAUDE="\$candidate"
+if [ -z "$REAL_CLAUDE" ]; then
+  candidate="$(command -v claude 2>/dev/null || true)"
+  if [ -n "$candidate" ] && [ "$candidate" != "$0" ]; then
+    REAL_CLAUDE="$candidate"
   fi
 fi
-if [ -z "\$REAL_CLAUDE" ] || [ ! -x "\$REAL_CLAUDE" ]; then
+if [ -z "$REAL_CLAUDE" ] || [ ! -x "$REAL_CLAUDE" ]; then
   echo "claude-jail: cannot locate the real claude binary" >&2
   echo "claude-jail: set CLAUDE_JAIL_REAL_BIN=/path/to/claude" >&2
   exit 127
 fi
 
-CWD="\$(pwd)"
+CWD="$(pwd)"
 
 exec bwrap \\
   --die-with-parent \\
@@ -74,17 +74,17 @@ exec bwrap \\
   --proc /proc \\
   --dev /dev \\
   --tmpfs /tmp \\
-  --bind "\$CWD" "\$CWD" \\
-  --ro-bind-try /dev/null "\$HOME/.claude/credentials.json" \\
-  --ro-bind-try /dev/null "\$HOME/.claude/.credentials.json" \\
-  --ro-bind-try /dev/null "\$HOME/.config/gh/hosts.yml" \\
-  --tmpfs "\$HOME/.aws" \\
-  --tmpfs "\$HOME/.azure" \\
-  --tmpfs "\$HOME/.gcp" \\
-  --tmpfs "\$HOME/.ssh" \\
-  --setenv HOME "\$HOME" \\
-  --chdir "\$CWD" \\
-  -- "\$REAL_CLAUDE" "\$@"
+  --bind "$CWD" "$CWD" \\
+  --ro-bind-try /dev/null "$HOME/.claude/credentials.json" \\
+  --ro-bind-try /dev/null "$HOME/.claude/.credentials.json" \\
+  --ro-bind-try /dev/null "$HOME/.config/gh/hosts.yml" \\
+  --tmpfs "$HOME/.aws" \\
+  --tmpfs "$HOME/.azure" \\
+  --tmpfs "$HOME/.gcp" \\
+  --tmpfs "$HOME/.ssh" \\
+  --setenv HOME "$HOME" \\
+  --chdir "$CWD" \\
+  -- "$REAL_CLAUDE" "$@"
 `
 
 /**

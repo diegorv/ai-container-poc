@@ -44,23 +44,27 @@ describe('findDangerousFields', () => {
   // other than the literal `vscode` to avoid silently elevating to
   // (or being downgraded to) some other UID with whatever capabilities
   // the kernel decides.
-  it.each(['Vscode', 'VSCODE', 'vscode '])(
-    'flags case- or whitespace-mismatched containerUser %s',
-    (user) => {
-      const findings = findDangerousFields({ containerUser: user })
-      expect(findings).toHaveLength(1)
-      expect(findings[0]?.field).toBe('containerUser')
-    },
-  )
+  it.each([
+    'Vscode',
+    'VSCODE',
+    'vscode ',
+  ])('flags case- or whitespace-mismatched containerUser %s', (user) => {
+    const findings = findDangerousFields({ containerUser: user })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.field).toBe('containerUser')
+  })
 
-  it.each(['0', '1000', 'root', 'admin', 'node'])(
-    'flags numeric or non-vscode containerUser %s',
-    (user) => {
-      const findings = findDangerousFields({ containerUser: user })
-      expect(findings).toHaveLength(1)
-      expect(findings[0]?.field).toBe('containerUser')
-    },
-  )
+  it.each([
+    '0',
+    '1000',
+    'root',
+    'admin',
+    'node',
+  ])('flags numeric or non-vscode containerUser %s', (user) => {
+    const findings = findDangerousFields({ containerUser: user })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.field).toBe('containerUser')
+  })
 
   it('flags an empty containerUser as not equal to vscode', () => {
     const findings = findDangerousFields({ containerUser: '' })

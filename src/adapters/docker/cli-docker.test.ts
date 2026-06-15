@@ -1,5 +1,5 @@
-import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { describe, expect, it } from 'vitest'
+import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { createCliDocker } from './cli-docker'
 
 describe('cli-docker via fake-shell', () => {

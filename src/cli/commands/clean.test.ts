@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest'
 import { createFakeDevcontainer } from '@/adapters/devcontainer/fake-devcontainer'
 import { createFakeDocker } from '@/adapters/docker/fake-docker'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
@@ -5,7 +6,6 @@ import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { clean } from './clean'
 

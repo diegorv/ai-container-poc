@@ -1,5 +1,5 @@
-import { parseStringMount } from '@/core/devcontainer/manipulate-mounts'
 import { z } from 'zod'
+import { parseStringMount } from '@/core/devcontainer/manipulate-mounts'
 
 /**
  * A mount entry in `devcontainer.json`. Devcontainer accepts both string
@@ -45,7 +45,7 @@ export type Mount = z.infer<typeof MountSchema>
 const LifecycleCommand = z.union([
   z.string(),
   z.array(z.string()),
-  z.record(z.union([z.string(), z.array(z.string())])),
+  z.record(z.string(), z.union([z.string(), z.array(z.string())])),
 ])
 
 /**
@@ -62,16 +62,16 @@ export const DevcontainerConfigSchema = z
       .object({
         dockerfile: z.string().optional(),
         context: z.string().optional(),
-        args: z.record(z.string()).optional(),
+        args: z.record(z.string(), z.string()).optional(),
       })
       .passthrough()
       .optional(),
     image: z.string().optional(),
-    features: z.record(z.unknown()).optional(),
+    features: z.record(z.string(), z.unknown()).optional(),
     runArgs: z.array(z.string()).optional(),
     mounts: z.array(MountSchema).optional(),
-    containerEnv: z.record(z.string()).optional(),
-    remoteEnv: z.record(z.string()).optional(),
+    containerEnv: z.record(z.string(), z.string()).optional(),
+    remoteEnv: z.record(z.string(), z.string()).optional(),
     workspaceFolder: z.string().optional(),
     workspaceMount: z.string().optional(),
     remoteUser: z.string().optional(),
@@ -84,7 +84,7 @@ export const DevcontainerConfigSchema = z
     postCreateCommand: LifecycleCommand.optional(),
     postStartCommand: LifecycleCommand.optional(),
     postAttachCommand: LifecycleCommand.optional(),
-    customizations: z.record(z.unknown()).optional(),
+    customizations: z.record(z.string(), z.unknown()).optional(),
     init: z.boolean().optional(),
     updateRemoteUserUID: z.boolean().optional(),
   })

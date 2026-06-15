@@ -1,11 +1,12 @@
+import type { Stats } from 'node:fs'
 import {
-  constants,
   chmod,
+  constants,
   cp,
   lstat,
   mkdir,
-  readFile,
   readdir,
+  readFile,
   readlink,
   realpath,
   rm,
@@ -27,7 +28,7 @@ async function exists(path: AbsolutePath): Promise<boolean> {
   }
 }
 
-function toFileStat(s: Awaited<ReturnType<typeof stat>>): FileStat {
+function toFileStat(s: Stats): FileStat {
   return {
     isDirectory: s.isDirectory(),
     isFile: s.isFile(),

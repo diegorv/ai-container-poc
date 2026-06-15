@@ -93,11 +93,13 @@ RUN uv python install 3.13 --default
 # Install ast-grep (AST-based code search)
 RUN uv tool install ast-grep-cli
 
-# Install fnm (Fast Node Manager) and Node 22. fnm.vercel.app/install
+# Install fnm (Fast Node Manager) and Node 25. fnm.vercel.app/install
 # is a redirector to the latest GitHub release script; same caveat as
 # claude.ai/install.sh — no stable SHA to pin against. Same hardening
-# (HTTPS-only, written to disk before exec).
-ARG NODE_VERSION=22
+# (HTTPS-only, written to disk before exec). Node 25+ dropped the
+# bundled Corepack (removed from the official distribution by the Node
+# TSC), so we reinstall it via npm before `corepack enable`.
+ARG NODE_VERSION=25
 ENV FNM_DIR="/home/vscode/.fnm"
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://fnm.vercel.app/install -o /tmp/fnm-install.sh && \
   bash /tmp/fnm-install.sh --install-dir "$FNM_DIR" --skip-shell && \
@@ -106,6 +108,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://fnm.vercel.app/install -o /tmp
   eval "$(fnm env)" && \
   fnm install ${NODE_VERSION} && \
   fnm default ${NODE_VERSION} && \
+  npm install -g corepack && \
   corepack enable
 
 # Install Oh My Zsh. zsh-in-docker.sh is fetched from a tag-pinned

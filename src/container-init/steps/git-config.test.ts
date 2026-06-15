@@ -1,8 +1,8 @@
+import { describe, expect, it } from 'vitest'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 import { gitConfigStep } from './git-config'
 import type { StepContext } from './step'
 

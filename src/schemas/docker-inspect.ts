@@ -19,7 +19,7 @@
 
 import { z } from 'zod'
 
-const StringRecord = z.record(z.string()).nullable().optional()
+const StringRecord = z.record(z.string(), z.string()).nullable().optional()
 
 export const DockerInspectMountSchema = z
   .object({

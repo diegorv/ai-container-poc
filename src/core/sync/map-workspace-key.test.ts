@@ -1,5 +1,5 @@
-import { untrust } from '@/core/security/brand'
 import { describe, expect, it } from 'vitest'
+import { untrust } from '@/core/security/brand'
 import { mapWorkspaceKey, resolveClaudeProjectsDir } from './map-workspace-key'
 
 const ue = (v: string) => untrust(v, 'docker.config.env')

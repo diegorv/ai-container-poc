@@ -34,7 +34,7 @@ import { update } from './commands/update'
 import { upgrade } from './commands/upgrade'
 import { validate } from './commands/validate'
 import type { CommandDeps } from './deps'
-import { type ParsedCommand, type Verbosity, parseArgs, parseGlobalFlags } from './parser'
+import { type ParsedCommand, parseArgs, parseGlobalFlags, type Verbosity } from './parser'
 
 function resolveTemplatesDir(): AbsolutePath {
   // dist/cli/index.js → templates/ at repo root in production.

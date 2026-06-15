@@ -104,7 +104,7 @@ export function createFakeDocker(opts: FakeDockerOptions = {}): FakeDocker {
   ): boolean {
     if (!expr) return true
     const eqIdx = expr.indexOf('=')
-    if (eqIdx === -1) return Object.prototype.hasOwnProperty.call(labels, expr)
+    if (eqIdx === -1) return Object.hasOwn(labels, expr)
     const key = expr.slice(0, eqIdx)
     const value = expr.slice(eqIdx + 1)
     const got = labels[key]

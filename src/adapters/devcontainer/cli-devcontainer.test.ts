@@ -1,5 +1,5 @@
-import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { describe, expect, it } from 'vitest'
+import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { createCliDevcontainer } from './cli-devcontainer'
 
 const WITH_BIN = { devcontainer: '/usr/local/bin/devcontainer' }

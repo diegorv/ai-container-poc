@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'vitest'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 import { DEFAULT_MAX_DEPTH, walkFiles } from './walk-fs'
 
 describe('walkFiles', () => {

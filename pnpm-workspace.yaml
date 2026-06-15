@@ -1,0 +1,15 @@
+# pnpm supply-chain hardening — ref: github.com/lirantal/npm-security-best-practices
+# Cooldown in MINUTES (rules 8/9); pnpm-specific trust controls (rules 5, 7).
+minimumReleaseAge: 14400
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+
+# Build-script policy. `.npmrc` sets `ignore-scripts=true`; these two ship a
+# postinstall but DON'T need it — their native binary is delivered by per-platform
+# optional packages (@esbuild/<plat>, @biomejs/cli-<plat>) that install without any
+# script, and esbuild's JS API / biome's bin shim resolve it at runtime. Verified
+# `pnpm build` + `pnpm lint` work with both denied. Kept as explicit `false` (not
+# removed) so pnpm doesn't re-flag them as ignored builds and rescaffold this block.
+allowBuilds:
+  '@biomejs/biome': false # binary from @biomejs/cli-<plat>; no postinstall needed
+  esbuild: false # binary from @esbuild/<plat>; no postinstall needed

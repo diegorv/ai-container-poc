@@ -1,10 +1,11 @@
 import { findDangerousFields } from '@/core/devcontainer/check-dangerous-fields'
+import { requiresGitRepo } from '@/core/devcontainer/check-git-repo'
 import { checkNoSysAdmin } from '@/core/devcontainer/check-no-sys-admin'
 import { enforceFirewall } from '@/core/devcontainer/enforce-firewall'
 import { findFirewallWindowWarnings } from '@/core/devcontainer/find-firewall-window-warnings'
 import { findUnknownTopLevelFields } from '@/core/devcontainer/find-unknown-fields'
 import { workspaceAllowlistPath } from '@/core/devcontainer/firewall-snapshot'
-import { devcontainerJsonOf } from '@/core/paths'
+import { devcontainerJsonOf, gitConfigOf } from '@/core/paths'
 import { operatorPath } from '@/core/security/path'
 import { CliError } from '@/lib/cli-error'
 import { parseJsonc } from '@/lib/parse-jsonc'
@@ -38,6 +39,18 @@ export async function rebuild(args: RebuildArgs, deps: CommandDeps): Promise<voi
       throw new CliError(`Dangerous devcontainer.json field: ${f?.reason}`, {
         suggestion: `Remove or correct '${f?.field}' in ${dcJson} and re-run.`,
       })
+    }
+    // The template bind-mounts the workspace's .git directory; Docker
+    // requires that bind source to exist before the container starts, so
+    // refuse early (with an actionable hint) rather than let `docker run`
+    // fail with a cryptic "bind source path does not exist".
+    if (requiresGitRepo(parsed) && !(await fs.exists(gitConfigOf(cwd)))) {
+      throw new CliError(
+        `${cwd} is not a git repository, but devcontainer.json bind-mounts its .git directory. Refusing to rebuild.`,
+        {
+          suggestion: `Run \`git init\` in ${cwd} (or remove the .git mounts from ${dcJson}) and re-run.`,
+        },
+      )
     }
     const unknown = findUnknownTopLevelFields(parsed)
     if (unknown.length > 0) {

@@ -1,4 +1,4 @@
-import type { LogLevel, Logger } from '@/ports/logger'
+import type { Logger, LogLevel } from '@/ports/logger'
 
 const ANSI = {
   reset: '\x1b[0m',

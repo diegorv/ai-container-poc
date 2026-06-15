@@ -1,8 +1,8 @@
+import { describe, expect, it } from 'vitest'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createFakeShell } from '@/adapters/shell/fake-shell'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 import type { StepContext } from './step'
 import { tmuxConfigStep } from './tmux-config'
 

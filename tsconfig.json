@@ -21,7 +21,6 @@
 
     "outDir": "./dist",
 
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },

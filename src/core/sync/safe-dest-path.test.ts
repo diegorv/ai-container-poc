@@ -1,5 +1,5 @@
-import { p } from '@/test-utils/path'
 import { describe, expect, it } from 'vitest'
+import { p } from '@/test-utils/path'
 import { safeDestPath } from './safe-dest-path'
 
 describe('safeDestPath', () => {

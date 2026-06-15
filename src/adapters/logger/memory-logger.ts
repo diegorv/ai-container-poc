@@ -1,4 +1,4 @@
-import type { LogLevel, Logger } from '@/ports/logger'
+import type { Logger, LogLevel } from '@/ports/logger'
 
 export interface LogEntry {
   level: LogLevel

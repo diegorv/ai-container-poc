@@ -1,0 +1,22 @@
+# Validate the lockfile, then install with a frozen lockfile (rules 15, 16).
+# lockfile-lint is pinned (not unpinned npx) to respect rule 18 even in CI.
+name: npm-security
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+      - name: Validate lockfile
+        run: npx --yes lockfile-lint@4 --path pnpm-lock.yaml --type pnpm --allowed-hosts npm --validate-https
+      - name: Install (frozen)
+        run: pnpm install --frozen-lockfile

@@ -1,8 +1,8 @@
+import { describe, expect, it } from 'vitest'
 import { createFakeDocker } from '@/adapters/docker/fake-docker'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 import {
   hostSnapshotPath,
   pushSnapshotToContainer,

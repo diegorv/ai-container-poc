@@ -8,10 +8,13 @@
     "mydevc": "./dist/cli/index.js",
     "mydevc-init": "./dist/container-init/index.js"
   },
-  "files": ["dist", "templates"],
+  "files": [
+    "dist",
+    "templates"
+  ],
   "scripts": {
     "dev": "tsx src/cli/index.ts",
-    "build": "tsup",
+    "build": "node scripts/build.mjs",
     "test": "vitest",
     "test:unit": "vitest run src",
     "test:integration": "vitest run tests/integration",
@@ -22,22 +25,22 @@
     "check": "biome check . && tsc --noEmit && vitest run"
   },
   "dependencies": {
-    "@devcontainers/cli": "^0.80.0",
+    "@devcontainers/cli": "^0.87.0",
     "execa": "^9.5.2",
     "jsonc-parser": "^3.3.1",
-    "zod": "^3.24.1"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.10.5",
-    "@vitest/coverage-v8": "^2.1.9",
-    "tsup": "^8.3.5",
+    "@biomejs/biome": "^2.4.16",
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.8",
+    "esbuild": "^0.28.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
-    "vitest": "^2.1.8"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=25"
   },
-  "packageManager": "pnpm@9.15.2"
+  "packageManager": "pnpm@11.7.0"
 }

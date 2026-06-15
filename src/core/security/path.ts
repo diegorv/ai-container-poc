@@ -24,8 +24,8 @@
  */
 
 import { resolve as nodeResolve } from 'node:path'
-import { type AbsolutePath, type SafeFilename, brandAs } from './brand'
-import { UntrustedInputError, asSafeFilename } from './untrusted-input'
+import { type AbsolutePath, brandAs, type SafeFilename } from './brand'
+import { asSafeFilename, UntrustedInputError } from './untrusted-input'
 
 /**
  * Brand a string-literal absolute path as `AbsolutePath`. Convention:

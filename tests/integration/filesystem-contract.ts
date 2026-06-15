@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'vitest'
 import type { FileSystem } from '@/ports/filesystem'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 
 /**
  * Shared behavioural contract for any FileSystem implementation. Both the

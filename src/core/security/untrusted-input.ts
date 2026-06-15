@@ -19,12 +19,12 @@
  */
 
 import {
+  brandAs,
   type HomeOrRootAbsolutePath,
   type PosixUserName,
   type SafeFilename,
   type SafeMountField,
   type Untrusted,
-  brandAs,
 } from './brand'
 
 export class UntrustedInputError extends Error {

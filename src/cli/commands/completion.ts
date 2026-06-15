@@ -48,19 +48,19 @@ _mydevc_complete() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   cmd="\${COMP_WORDS[1]:-}"
-  if [[ \$COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=( \$(compgen -W "${cmds}" -- "\$cur") )
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=( $(compgen -W "${cmds}" -- "$cur") )
     return 0
   fi
-  case "\$cmd" in
-    template|.) COMPREPLY=( \$(compgen -W "-f --secure" -- "\$cur") ) ;;
-    destroy)    COMPREPLY=( \$(compgen -W "-f" -- "\$cur") ) ;;
-    sync)       COMPREPLY=( \$(compgen -W "--trusted" -- "\$cur") ) ;;
-    mount)      COMPREPLY=( \$(compgen -W "--readonly --allow-dangerous" -- "\$cur") ) ;;
-    info)       COMPREPLY=( \$(compgen -W "--json" -- "\$cur") ) ;;
-    logs)       COMPREPLY=( \$(compgen -W "-f --follow --tail" -- "\$cur") ) ;;
-    clean)      COMPREPLY=( \$(compgen -W "--container --volumes --images --cache -f --dry-run" -- "\$cur") ) ;;
-    completion) COMPREPLY=( \$(compgen -W "bash zsh fish" -- "\$cur") ) ;;
+  case "$cmd" in
+    template|.) COMPREPLY=( $(compgen -W "-f --secure" -- "$cur") ) ;;
+    destroy)    COMPREPLY=( $(compgen -W "-f" -- "$cur") ) ;;
+    sync)       COMPREPLY=( $(compgen -W "--trusted" -- "$cur") ) ;;
+    mount)      COMPREPLY=( $(compgen -W "--readonly --allow-dangerous" -- "$cur") ) ;;
+    info)       COMPREPLY=( $(compgen -W "--json" -- "$cur") ) ;;
+    logs)       COMPREPLY=( $(compgen -W "-f --follow --tail" -- "$cur") ) ;;
+    clean)      COMPREPLY=( $(compgen -W "--container --volumes --images --cache -f --dry-run" -- "$cur") ) ;;
+    completion) COMPREPLY=( $(compgen -W "bash zsh fish" -- "$cur") ) ;;
   esac
 }
 complete -F _mydevc_complete mydevc

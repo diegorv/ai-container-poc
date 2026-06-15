@@ -1,6 +1,6 @@
+import { execa } from 'execa'
 import { assertNoNul } from '@/core/security/untrusted-input'
 import type { Shell, ShellOptions, ShellResult } from '@/ports/shell'
-import { execa } from 'execa'
 
 interface ExecaCallOptions {
   cwd?: string

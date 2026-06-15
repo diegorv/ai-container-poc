@@ -1,8 +1,8 @@
+import { describe, expect, it } from 'vitest'
 import { createMemoryFs } from '@/adapters/filesystem/memory-fs'
 import { createMemoryLogger } from '@/adapters/logger/memory-logger'
 import { createScriptedPrompt } from '@/adapters/prompt/scripted-prompt'
 import { p } from '@/test-utils/path'
-import { describe, expect, it } from 'vitest'
 import type { CommandDeps } from '../deps'
 import { template } from './template'
 

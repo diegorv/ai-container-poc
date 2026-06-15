@@ -1,0 +1,14 @@
+# Dependabot with a cooldown so update PRs wait for the ecosystem to flag a bad
+# release before it reaches you (rule 11). npm/pnpm/yarn all use ecosystem "npm".
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 10
+      semver-major-days: 10
+      semver-minor-days: 10
+      semver-patch-days: 10
+    open-pull-requests-limit: 5

@@ -1,5 +1,5 @@
-import type { Shell } from '@/ports/shell'
 import { describe, expect, it } from 'vitest'
+import type { Shell } from '@/ports/shell'
 
 /**
  * Behavioural contract for any Shell implementation. The fake exposes a
